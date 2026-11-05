@@ -5,7 +5,7 @@ provider processes using ACP v1 JSON-RPC over stdio:
 
 ```text
 HTTP client / OpenAI SDK
-  -> acpboss api: Responses HTTP API
+  -> acpboss api: Responses or Chat Completions HTTP API
     -> ACP over stdio -> codex-acp / opencode acp / another ACP executable
       -> model service chosen by that executable
 
@@ -27,17 +27,18 @@ that provider calls a Responses, Completions, or vendor-specific API.
 | `GET /v1/models` | List qualified models discovered through ACP sessions. |
 | `POST /v1/responses` | Select an attached conversation or create an isolated session, select a model, prompt and collect text. Release isolated sessions after completion. |
 | `POST /v1/responses` with `stream:true` | The same lifecycle with typed Responses SSE events. |
+| `POST /v1/chat/completions` | Normalize messages into an isolated session, select a model, prompt and return one OpenAI-compatible choice. |
+| `POST /v1/chat/completions` with `stream:true` | The same one-shot lifecycle with data-only Chat Completion chunks and `[DONE]` on success. |
 | `POST /v1/conversations` | Create a logical session with native bindings for all live providers; return a process-local handle. Optional metadata only. |
 | `GET /v1/conversations/{id}` | Return identity, created time and supplied metadata; no prompt or history lookup. |
 | `POST /v1/conversations/{id}` | Replace metadata; `metadata:null` clears it. |
 | `DELETE /v1/conversations/{id}` | Remove the handle, cancel active work and release its native bindings. |
-| `/v1/chat/completions` | HTTP 404, `unsupported_endpoint`. |
 | `/v1/completions` | HTTP 404, `unsupported_endpoint`. |
 | Other paths, including stored-response retrieval | HTTP 404, `unsupported_endpoint`. |
 
-An OpenAI-compatible client must use its **Responses** operation. Chat
-Completions requests and response chunks are not translated. The full request
-and response schemas are in [openapi.yaml](openapi.yaml).
+An OpenAI-compatible client can use its **Responses** or **Chat Completions**
+operation. The full strict request and response schemas are in
+[openapi.yaml](openapi.yaml).
 
 ## Provider and model identifiers
 
@@ -83,7 +84,8 @@ not prove that the account can generate with every advertised model.
 
 ## HTTP request to ACP calls
 
-For each valid `POST /v1/responses`, `acpboss` performs:
+For each valid `POST /v1/responses` or `POST /v1/chat/completions`, `acpboss`
+performs:
 
 1. Validate the HTTP body and locate the qualified model in the catalog.
 2. Without a conversation, send `session/new` to the selected provider with the configured absolute
@@ -111,6 +113,17 @@ and its separate history. No transcript is copied between providers. Handles
 last until DELETE or process shutdown; restart makes old IDs unknown (404).
 Providers that do not implement `session/close` can retain their own state until
 their process exits.
+
+Chat Completions always takes the isolated-session path. Roles and text are
+preserved in the normalized transcript; inline user image data URLs become ACP
+image blocks. The client must resend previous messages on every turn. Chat does
+not accept a conversation handle and never rebinds an existing native session.
+
+The accepted Chat fields are `model`, `messages`, `stream`, `n` omitted or `1`,
+`store` omitted or `false`, and `modalities` omitted or `["text"]`. Roles are
+`system`, `developer`, `user` and `assistant`. Tools/functions, sampling and stop
+controls, log probabilities, structured output, audio and service tiers return
+HTTP 400 rather than being ignored.
 
 | HTTP request field | ACP mapping or validation |
 | --- | --- |
@@ -193,6 +206,19 @@ permission, the HTTP adapter replies with a cancelled outcome, cancels the
 prompt, and reports failure. HTTP has no permission dialog or client-executed
 function-call loop.
 
+For Chat Completions, `end_turn` maps to `finish_reason:"stop"` and
+`max_tokens` maps to `finish_reason:"length"`. JSON output contains one
+assistant choice. Compatible usage is omitted because ACP does not expose the
+required token accounting. Unsupported assistant media or a prompt failure
+returns an OpenAI error envelope instead of a successful partial completion.
+
+Chat streaming starts with an assistant-role delta, emits ordered content
+deltas, then a terminal choice containing the finish reason. Every successful
+frame shares the same `chatcmpl-…` ID, model and creation time, and exactly one
+`data: [DONE]` follows. If generation fails after headers, the stream emits an
+OpenAI error object as a data frame without a successful terminal chunk or
+`[DONE]`.
+
 With `stream:true`, the event order on a writable connection is:
 
 ```text
@@ -222,7 +248,7 @@ Errors before generation use an HTTP error object with `error.message`,
 | Invalid JSON, unsupported field, content, or state | 400 |
 | Unknown/deleted conversation, unknown/unavailable model or unsupported path | 404 |
 | Overlapping turn or native RPC still draining on the conversation | 409 |
-| Non-POST method on `/v1/responses` | 405 with `Allow: POST` |
+| Non-POST method on `/v1/responses` or `/v1/chat/completions` | 405 with `Allow: POST` |
 | Request body exceeds the configured limit | 413 |
 | Request/session capacity exhausted | 429 |
 | Provider session/model setup failure | 502 |

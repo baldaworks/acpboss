@@ -24,19 +24,21 @@ type textMessage struct {
 type normalized struct {
 	Model, Prompt string
 	Conversation  string
+	SourceRoot    string
 	Stream        bool
 	Instructions  *string
 	Blocks        []any
 	Sources       []string
 }
 type contentMessage struct {
+	path    string
 	role    string
 	blocks  []any
 	sources []string
 }
 
-func normalize(req api.CreateResponse) (normalized, error) {
-	n := normalized{Model: req.Model, Instructions: req.Instructions, Stream: req.Stream != nil && *req.Stream}
+func normalizeResponse(req api.CreateResponse) (normalized, error) {
+	n := normalized{Model: req.Model, SourceRoot: "input", Instructions: req.Instructions, Stream: req.Stream != nil && *req.Stream}
 	if req.Conversation != nil {
 		id, err := req.Conversation.AsConversationSelector0()
 		if err != nil {
@@ -61,7 +63,7 @@ func normalize(req api.CreateResponse) (normalized, error) {
 		}
 		for i, m := range items {
 			path := fmt.Sprintf("input[%d]", i)
-			cm := contentMessage{role: string(m.Role)}
+			cm := contentMessage{path: path, role: string(m.Role)}
 			content, err := m.Content.AsMessageContent0()
 			if err != nil {
 				parts, err := m.Content.AsMessageContent1()
@@ -117,6 +119,66 @@ func normalize(req api.CreateResponse) (normalized, error) {
 			structured = append(structured, cm)
 		}
 	}
+	return finishNormalized(n, direct, messages, structured, hasMedia)
+}
+
+func normalizeChatCompletion(req api.CreateChatCompletion) (normalized, error) {
+	n := normalized{Model: req.Model, SourceRoot: "messages", Stream: req.Stream != nil && *req.Stream}
+	messages := make([]textMessage, 0, len(req.Messages))
+	structured := make([]contentMessage, 0, len(req.Messages))
+	hasMedia := false
+	direct := ""
+	for i, message := range req.Messages {
+		path := fmt.Sprintf("messages[%d]", i)
+		cm := contentMessage{path: path, role: string(message.Role)}
+		content, err := message.Content.AsChatMessageContent0()
+		if err == nil {
+			cm.blocks = []any{map[string]any{"type": "text", "text": content}}
+			cm.sources = []string{path + ".content"}
+			if len(req.Messages) == 1 && message.Role == api.ChatMessageRoleUser {
+				direct = content
+			}
+		} else {
+			parts, partsErr := message.Content.AsChatMessageContent1()
+			if partsErr != nil {
+				return n, invalid(path+".content", "expected content string or parts")
+			}
+			var text strings.Builder
+			for j, part := range parts {
+				source := fmt.Sprintf("%s.content[%d]", path, j)
+				kind, _ := part.Discriminator()
+				var block map[string]any
+				switch kind {
+				case "text":
+					value, _ := part.AsChatTextPart()
+					text.WriteString(value.Text)
+					block = map[string]any{"type": "text", "text": value.Text}
+				case "image_url":
+					if message.Role != api.ChatMessageRoleUser {
+						return n, invalid(source, "image_url requires user role")
+					}
+					value, _ := part.AsChatImagePart()
+					mediaType, data, imageErr := inlineData(value.ImageUrl.Url)
+					if imageErr != nil || !strings.HasPrefix(mediaType, "image/") {
+						return n, invalid(source+".image_url.url", "expected a valid base64 image data URL")
+					}
+					block = map[string]any{"type": "image", "mimeType": mediaType, "data": data}
+					hasMedia = true
+				default:
+					return n, invalid(source, "unsupported content type")
+				}
+				cm.blocks = append(cm.blocks, block)
+				cm.sources = append(cm.sources, source)
+			}
+			content = text.String()
+		}
+		messages = append(messages, textMessage{Role: string(message.Role), Text: content})
+		structured = append(structured, cm)
+	}
+	return finishNormalized(n, direct, messages, structured, hasMedia)
+}
+
+func finishNormalized(n normalized, direct string, messages []textMessage, structured []contentMessage, hasMedia bool) (normalized, error) {
 	if hasMedia {
 		// ACP prompts have no role-bearing message array. Explicit JSON boundary
 		// records associate the original, ordered media/text blocks with each role.
@@ -137,11 +199,11 @@ func normalize(req api.CreateResponse) (normalized, error) {
 				return map[string]any{"type": "text", "text": string(raw)}
 			}
 			n.Blocks = append(n.Blocks, boundary("begin"))
-			n.Sources = append(n.Sources, fmt.Sprintf("input[%d]", i))
+			n.Sources = append(n.Sources, m.path)
 			n.Blocks = append(n.Blocks, m.blocks...)
 			n.Sources = append(n.Sources, m.sources...)
 			n.Blocks = append(n.Blocks, boundary("end"))
-			n.Sources = append(n.Sources, fmt.Sprintf("input[%d]", i))
+			n.Sources = append(n.Sources, m.path)
 		}
 		return n, nil
 	}

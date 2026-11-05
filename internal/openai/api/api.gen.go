@@ -23,6 +23,183 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for ChatCompletionObject.
+const (
+	ChatCompletionObjectChatCompletion ChatCompletionObject = "chat.completion"
+)
+
+// Valid indicates whether the value is a known member of the ChatCompletionObject enum.
+func (e ChatCompletionObject) Valid() bool {
+	switch e {
+	case ChatCompletionObjectChatCompletion:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChatCompletionChoiceFinishReason.
+const (
+	Length ChatCompletionChoiceFinishReason = "length"
+	Stop   ChatCompletionChoiceFinishReason = "stop"
+)
+
+// Valid indicates whether the value is a known member of the ChatCompletionChoiceFinishReason enum.
+func (e ChatCompletionChoiceFinishReason) Valid() bool {
+	switch e {
+	case Length:
+		return true
+	case Stop:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChatCompletionChoiceIndex.
+const (
+	ChatCompletionChoiceIndexN0 ChatCompletionChoiceIndex = 0
+)
+
+// Valid indicates whether the value is a known member of the ChatCompletionChoiceIndex enum.
+func (e ChatCompletionChoiceIndex) Valid() bool {
+	switch e {
+	case ChatCompletionChoiceIndexN0:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChatCompletionChunkObject.
+const (
+	ChatCompletionChunkObjectChatCompletionChunk ChatCompletionChunkObject = "chat.completion.chunk"
+)
+
+// Valid indicates whether the value is a known member of the ChatCompletionChunkObject enum.
+func (e ChatCompletionChunkObject) Valid() bool {
+	switch e {
+	case ChatCompletionChunkObjectChatCompletionChunk:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChatCompletionChunkChoiceIndex.
+const (
+	ChatCompletionChunkChoiceIndexN0 ChatCompletionChunkChoiceIndex = 0
+)
+
+// Valid indicates whether the value is a known member of the ChatCompletionChunkChoiceIndex enum.
+func (e ChatCompletionChunkChoiceIndex) Valid() bool {
+	switch e {
+	case ChatCompletionChunkChoiceIndexN0:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChatCompletionChunkDeltaRole.
+const (
+	ChatCompletionChunkDeltaRoleAssistant ChatCompletionChunkDeltaRole = "assistant"
+)
+
+// Valid indicates whether the value is a known member of the ChatCompletionChunkDeltaRole enum.
+func (e ChatCompletionChunkDeltaRole) Valid() bool {
+	switch e {
+	case ChatCompletionChunkDeltaRoleAssistant:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChatCompletionMessageRole.
+const (
+	ChatCompletionMessageRoleAssistant ChatCompletionMessageRole = "assistant"
+)
+
+// Valid indicates whether the value is a known member of the ChatCompletionMessageRole enum.
+func (e ChatCompletionMessageRole) Valid() bool {
+	switch e {
+	case ChatCompletionMessageRoleAssistant:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChatImagePartType.
+const (
+	ImageUrl ChatImagePartType = "image_url"
+)
+
+// Valid indicates whether the value is a known member of the ChatImagePartType enum.
+func (e ChatImagePartType) Valid() bool {
+	switch e {
+	case ImageUrl:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChatImageURLDetail.
+const (
+	ChatImageURLDetailAuto ChatImageURLDetail = "auto"
+)
+
+// Valid indicates whether the value is a known member of the ChatImageURLDetail enum.
+func (e ChatImageURLDetail) Valid() bool {
+	switch e {
+	case ChatImageURLDetailAuto:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChatMessageRole.
+const (
+	ChatMessageRoleAssistant ChatMessageRole = "assistant"
+	ChatMessageRoleDeveloper ChatMessageRole = "developer"
+	ChatMessageRoleSystem    ChatMessageRole = "system"
+	ChatMessageRoleUser      ChatMessageRole = "user"
+)
+
+// Valid indicates whether the value is a known member of the ChatMessageRole enum.
+func (e ChatMessageRole) Valid() bool {
+	switch e {
+	case ChatMessageRoleAssistant:
+		return true
+	case ChatMessageRoleDeveloper:
+		return true
+	case ChatMessageRoleSystem:
+		return true
+	case ChatMessageRoleUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChatTextPartType.
+const (
+	ChatTextPartTypeText ChatTextPartType = "text"
+)
+
+// Valid indicates whether the value is a known member of the ChatTextPartType enum.
+func (e ChatTextPartType) Valid() bool {
+	switch e {
+	case ChatTextPartTypeText:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ContentPartEventType.
 const (
 	ResponseContentPartAdded ContentPartEventType = "response.content_part.added"
@@ -50,6 +227,51 @@ const (
 func (e ConversationObject) Valid() bool {
 	switch e {
 	case ConversationObjectConversation:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateChatCompletionModalities.
+const (
+	CreateChatCompletionModalitiesText CreateChatCompletionModalities = "text"
+)
+
+// Valid indicates whether the value is a known member of the CreateChatCompletionModalities enum.
+func (e CreateChatCompletionModalities) Valid() bool {
+	switch e {
+	case CreateChatCompletionModalitiesText:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateChatCompletionN.
+const (
+	N1 CreateChatCompletionN = 1
+)
+
+// Valid indicates whether the value is a known member of the CreateChatCompletionN enum.
+func (e CreateChatCompletionN) Valid() bool {
+	switch e {
+	case N1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateChatCompletionStore.
+const (
+	CreateChatCompletionStoreFalse CreateChatCompletionStore = false
+)
+
+// Valid indicates whether the value is a known member of the CreateChatCompletionStore enum.
+func (e CreateChatCompletionStore) Valid() bool {
+	switch e {
+	case CreateChatCompletionStoreFalse:
 		return true
 	default:
 		return false
@@ -166,13 +388,13 @@ func (e InputFileType) Valid() bool {
 
 // Defines values for InputImageDetail.
 const (
-	Auto InputImageDetail = "auto"
+	InputImageDetailAuto InputImageDetail = "auto"
 )
 
 // Valid indicates whether the value is a known member of the InputImageDetail enum.
 func (e InputImageDetail) Valid() bool {
 	switch e {
-	case Auto:
+	case InputImageDetailAuto:
 		return true
 	default:
 		return false
@@ -271,13 +493,13 @@ func (e MessageType) Valid() bool {
 
 // Defines values for ModelCreated.
 const (
-	N0 ModelCreated = 0
+	ModelCreatedN0 ModelCreated = 0
 )
 
 // Valid indicates whether the value is a known member of the ModelCreated enum.
 func (e ModelCreated) Valid() bool {
 	switch e {
-	case N0:
+	case ModelCreatedN0:
 		return true
 	default:
 		return false
@@ -571,18 +793,139 @@ func (e TextDoneEventType) Valid() bool {
 
 // Defines values for TextOptionsFormatType.
 const (
-	Text TextOptionsFormatType = "text"
+	TextOptionsFormatTypeText TextOptionsFormatType = "text"
 )
 
 // Valid indicates whether the value is a known member of the TextOptionsFormatType enum.
 func (e TextOptionsFormatType) Valid() bool {
 	switch e {
-	case Text:
+	case TextOptionsFormatTypeText:
 		return true
 	default:
 		return false
 	}
 }
+
+// ChatCompletion defines model for ChatCompletion.
+type ChatCompletion struct {
+	Choices []ChatCompletionChoice `json:"choices"`
+	Created int64                  `json:"created"`
+	Id      string                 `json:"id"`
+	Model   string                 `json:"model"`
+	Object  ChatCompletionObject   `json:"object"`
+}
+
+// ChatCompletionObject defines model for ChatCompletion.Object.
+type ChatCompletionObject string
+
+// ChatCompletionChoice defines model for ChatCompletionChoice.
+type ChatCompletionChoice struct {
+	FinishReason ChatCompletionChoiceFinishReason `json:"finish_reason"`
+	Index        ChatCompletionChoiceIndex        `json:"index"`
+	Logprobs     any                              `json:"logprobs"`
+	Message      ChatCompletionMessage            `json:"message"`
+}
+
+// ChatCompletionChoiceFinishReason defines model for ChatCompletionChoice.FinishReason.
+type ChatCompletionChoiceFinishReason string
+
+// ChatCompletionChoiceIndex defines model for ChatCompletionChoice.Index.
+type ChatCompletionChoiceIndex int
+
+// ChatCompletionChunk defines model for ChatCompletionChunk.
+type ChatCompletionChunk struct {
+	Choices []ChatCompletionChunkChoice `json:"choices"`
+	Created int64                       `json:"created"`
+	Id      string                      `json:"id"`
+	Model   string                      `json:"model"`
+	Object  ChatCompletionChunkObject   `json:"object"`
+}
+
+// ChatCompletionChunkObject defines model for ChatCompletionChunk.Object.
+type ChatCompletionChunkObject string
+
+// ChatCompletionChunkChoice defines model for ChatCompletionChunkChoice.
+type ChatCompletionChunkChoice struct {
+	Delta        ChatCompletionChunkDelta       `json:"delta"`
+	FinishReason *string                        `json:"finish_reason"`
+	Index        ChatCompletionChunkChoiceIndex `json:"index"`
+	Logprobs     any                            `json:"logprobs"`
+}
+
+// ChatCompletionChunkChoiceIndex defines model for ChatCompletionChunkChoice.Index.
+type ChatCompletionChunkChoiceIndex int
+
+// ChatCompletionChunkDelta defines model for ChatCompletionChunkDelta.
+type ChatCompletionChunkDelta struct {
+	Content *string                       `json:"content,omitempty"`
+	Refusal any                           `json:"refusal,omitempty"`
+	Role    *ChatCompletionChunkDeltaRole `json:"role,omitempty"`
+}
+
+// ChatCompletionChunkDeltaRole defines model for ChatCompletionChunkDelta.Role.
+type ChatCompletionChunkDeltaRole string
+
+// ChatCompletionMessage defines model for ChatCompletionMessage.
+type ChatCompletionMessage struct {
+	Content string                    `json:"content"`
+	Refusal any                       `json:"refusal"`
+	Role    ChatCompletionMessageRole `json:"role"`
+}
+
+// ChatCompletionMessageRole defines model for ChatCompletionMessage.Role.
+type ChatCompletionMessageRole string
+
+// ChatContentPart defines model for ChatContentPart.
+type ChatContentPart struct {
+	union json.RawMessage
+}
+
+// ChatImagePart defines model for ChatImagePart.
+type ChatImagePart struct {
+	ImageUrl ChatImageURL      `json:"image_url"`
+	Type     ChatImagePartType `json:"type"`
+}
+
+// ChatImagePartType defines model for ChatImagePart.Type.
+type ChatImagePartType string
+
+// ChatImageURL defines model for ChatImageURL.
+type ChatImageURL struct {
+	Detail *ChatImageURLDetail `json:"detail,omitempty"`
+	Url    string              `json:"url"`
+}
+
+// ChatImageURLDetail defines model for ChatImageURL.Detail.
+type ChatImageURLDetail string
+
+// ChatMessage defines model for ChatMessage.
+type ChatMessage struct {
+	Content ChatMessage_Content `json:"content"`
+	Role    ChatMessageRole     `json:"role"`
+}
+
+// ChatMessageContent0 defines model for ChatMessage.Content.0.
+type ChatMessageContent0 = string
+
+// ChatMessageContent1 defines model for ChatMessage.Content.1.
+type ChatMessageContent1 = []ChatContentPart
+
+// ChatMessage_Content defines model for ChatMessage.Content.
+type ChatMessage_Content struct {
+	union json.RawMessage
+}
+
+// ChatMessageRole defines model for ChatMessage.Role.
+type ChatMessageRole string
+
+// ChatTextPart defines model for ChatTextPart.
+type ChatTextPart struct {
+	Text string           `json:"text"`
+	Type ChatTextPartType `json:"type"`
+}
+
+// ChatTextPartType defines model for ChatTextPart.Type.
+type ChatTextPartType string
 
 // ContentPartEvent defines model for ContentPartEvent.
 type ContentPartEvent struct {
@@ -623,6 +966,25 @@ type ConversationSelector struct {
 
 // ConversationSelector0 defines model for ConversationSelector.0.
 type ConversationSelector0 = string
+
+// CreateChatCompletion defines model for CreateChatCompletion.
+type CreateChatCompletion struct {
+	Messages   []ChatMessage                     `json:"messages"`
+	Modalities *[]CreateChatCompletionModalities `json:"modalities,omitempty"`
+	Model      string                            `json:"model"`
+	N          *CreateChatCompletionN            `json:"n,omitempty"`
+	Store      *CreateChatCompletionStore        `json:"store,omitempty"`
+	Stream     *bool                             `json:"stream,omitempty"`
+}
+
+// CreateChatCompletionModalities defines model for CreateChatCompletion.Modalities.
+type CreateChatCompletionModalities string
+
+// CreateChatCompletionN defines model for CreateChatCompletion.N.
+type CreateChatCompletionN int
+
+// CreateChatCompletionStore defines model for CreateChatCompletion.Store.
+type CreateChatCompletionStore bool
 
 // CreateConversation defines model for CreateConversation.
 type CreateConversation struct {
@@ -939,6 +1301,9 @@ type UpdateConversation struct {
 	Metadata *ConversationMetadata `json:"metadata"`
 }
 
+// CreateChatCompletionJSONRequestBody defines body for CreateChatCompletion for application/json ContentType.
+type CreateChatCompletionJSONRequestBody = CreateChatCompletion
+
 // CreateConversationJSONRequestBody defines body for CreateConversation for application/json ContentType.
 type CreateConversationJSONRequestBody = CreateConversation
 
@@ -947,6 +1312,169 @@ type UpdateConversationJSONRequestBody = UpdateConversation
 
 // CreateResponseJSONRequestBody defines body for CreateResponse for application/json ContentType.
 type CreateResponseJSONRequestBody = CreateResponse
+
+// AsChatTextPart returns the union data inside the ChatContentPart as a ChatTextPart
+func (t ChatContentPart) AsChatTextPart() (ChatTextPart, error) {
+	var body ChatTextPart
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromChatTextPart overwrites any union data inside the ChatContentPart as the provided ChatTextPart
+func (t *ChatContentPart) FromChatTextPart(v ChatTextPart) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"text"}`))
+	t.union = b
+	return err
+}
+
+// MergeChatTextPart performs a merge with any union data inside the ChatContentPart, using the provided ChatTextPart
+func (t *ChatContentPart) MergeChatTextPart(v ChatTextPart) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"text"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsChatImagePart returns the union data inside the ChatContentPart as a ChatImagePart
+func (t ChatContentPart) AsChatImagePart() (ChatImagePart, error) {
+	var body ChatImagePart
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromChatImagePart overwrites any union data inside the ChatContentPart as the provided ChatImagePart
+func (t *ChatContentPart) FromChatImagePart(v ChatImagePart) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"image_url"}`))
+	t.union = b
+	return err
+}
+
+// MergeChatImagePart performs a merge with any union data inside the ChatContentPart, using the provided ChatImagePart
+func (t *ChatContentPart) MergeChatImagePart(v ChatImagePart) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"image_url"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ChatContentPart) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t ChatContentPart) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "image_url":
+		return t.AsChatImagePart()
+	case "text":
+		return t.AsChatTextPart()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t ChatContentPart) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ChatContentPart) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsChatMessageContent0 returns the union data inside the ChatMessage_Content as a ChatMessageContent0
+func (t ChatMessage_Content) AsChatMessageContent0() (ChatMessageContent0, error) {
+	var body ChatMessageContent0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromChatMessageContent0 overwrites any union data inside the ChatMessage_Content as the provided ChatMessageContent0
+func (t *ChatMessage_Content) FromChatMessageContent0(v ChatMessageContent0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeChatMessageContent0 performs a merge with any union data inside the ChatMessage_Content, using the provided ChatMessageContent0
+func (t *ChatMessage_Content) MergeChatMessageContent0(v ChatMessageContent0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsChatMessageContent1 returns the union data inside the ChatMessage_Content as a ChatMessageContent1
+func (t ChatMessage_Content) AsChatMessageContent1() (ChatMessageContent1, error) {
+	var body ChatMessageContent1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromChatMessageContent1 overwrites any union data inside the ChatMessage_Content as the provided ChatMessageContent1
+func (t *ChatMessage_Content) FromChatMessageContent1(v ChatMessageContent1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeChatMessageContent1 performs a merge with any union data inside the ChatMessage_Content, using the provided ChatMessageContent1
+func (t *ChatMessage_Content) MergeChatMessageContent1(v ChatMessageContent1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ChatMessage_Content) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ChatMessage_Content) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // AsConversationSelector0 returns the union data inside the ConversationSelector as a ConversationSelector0
 func (t ConversationSelector) AsConversationSelector0() (ConversationSelector0, error) {
@@ -1450,6 +1978,9 @@ func (t *StreamEvent) UnmarshalJSON(b []byte) error {
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 
+	// (POST /v1/chat/completions)
+	CreateChatCompletion(w http.ResponseWriter, r *http.Request)
+
 	// (POST /v1/conversations)
 	CreateConversation(w http.ResponseWriter, r *http.Request)
 
@@ -1477,6 +2008,20 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// CreateChatCompletion operation middleware
+func (siw *ServerInterfaceWrapper) CreateChatCompletion(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateChatCompletion(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // CreateConversation operation middleware
 func (siw *ServerInterfaceWrapper) CreateConversation(w http.ResponseWriter, r *http.Request) {
@@ -1720,12 +2265,204 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/models", wrapper.ListModels)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/responses", wrapper.CreateResponse)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/chat/completions", wrapper.CreateChatCompletion)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/conversations", wrapper.CreateConversation)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/conversations/{conversation_id}", wrapper.DeleteConversation)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/conversations/{conversation_id}", wrapper.GetConversation)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/conversations/{conversation_id}", wrapper.UpdateConversation)
 
 	return m
+}
+
+type CreateChatCompletionRequestObject struct {
+	Body *CreateChatCompletionJSONRequestBody
+}
+
+type CreateChatCompletionResponseObject interface {
+	VisitCreateChatCompletionResponse(w http.ResponseWriter) error
+}
+
+type CreateChatCompletion200JSONResponse ChatCompletion
+
+func (response CreateChatCompletion200JSONResponse) VisitCreateChatCompletionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateChatCompletion200TexteventStreamResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response CreateChatCompletion200TexteventStreamResponse) VisitCreateChatCompletionResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		// If w doesn't support flushing, fall back to io.Copy.
+		_, err := io.Copy(w, response.Body)
+		return err
+	}
+	// text/event-stream messages are typically small; use a
+	// modest buffer and flush after each chunk so clients see
+	// events immediately instead of waiting on OS buffering.
+	buf := make([]byte, 4096)
+	for {
+		n, err := response.Body.Read(buf)
+		if n > 0 {
+			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
+				return writeErr
+			}
+			flusher.Flush()
+		}
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+	}
+}
+
+type CreateChatCompletion400JSONResponse Error
+
+func (response CreateChatCompletion400JSONResponse) VisitCreateChatCompletionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateChatCompletion404JSONResponse Error
+
+func (response CreateChatCompletion404JSONResponse) VisitCreateChatCompletionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateChatCompletion405JSONResponse Error
+
+func (response CreateChatCompletion405JSONResponse) VisitCreateChatCompletionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(405)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateChatCompletion413JSONResponse Error
+
+func (response CreateChatCompletion413JSONResponse) VisitCreateChatCompletionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(413)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateChatCompletion429JSONResponse Error
+
+func (response CreateChatCompletion429JSONResponse) VisitCreateChatCompletionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateChatCompletion500JSONResponse Error
+
+func (response CreateChatCompletion500JSONResponse) VisitCreateChatCompletionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateChatCompletion502JSONResponse Error
+
+func (response CreateChatCompletion502JSONResponse) VisitCreateChatCompletionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(502)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateChatCompletion503JSONResponse Error
+
+func (response CreateChatCompletion503JSONResponse) VisitCreateChatCompletionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateChatCompletion504JSONResponse Error
+
+func (response CreateChatCompletion504JSONResponse) VisitCreateChatCompletionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(504)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type CreateConversationRequestObject struct {
@@ -2606,6 +3343,9 @@ func (response CreateResponse504JSONResponse) VisitCreateResponseResponse(w http
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 
+	// (POST /v1/chat/completions)
+	CreateChatCompletion(ctx context.Context, request CreateChatCompletionRequestObject) (CreateChatCompletionResponseObject, error)
+
 	// (POST /v1/conversations)
 	CreateConversation(ctx context.Context, request CreateConversationRequestObject) (CreateConversationResponseObject, error)
 
@@ -2662,6 +3402,37 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// CreateChatCompletion operation middleware
+func (sh *strictHandler) CreateChatCompletion(w http.ResponseWriter, r *http.Request) {
+	var request CreateChatCompletionRequestObject
+
+	var body CreateChatCompletionJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateChatCompletion(ctx, request.(CreateChatCompletionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateChatCompletion")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateChatCompletionResponseObject); ok {
+		if err := validResponse.VisitCreateChatCompletionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // CreateConversation operation middleware
@@ -2840,52 +3611,62 @@ func (sh *strictHandler) CreateResponse(w http.ResponseWriter, r *http.Request) 
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"svrlgMiK/GiM08J4DbCzXP4vAAD//w==",
+	"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",
+	"amBnvf5/AAAA//8=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

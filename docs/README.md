@@ -1,7 +1,8 @@
 # acpboss documentation
 
 acpboss launches configured ACP provider processes and exposes them through an
-ACP stdio frontend or an OpenAI Responses HTTP frontend with live ACP conversations.
+ACP stdio frontend or an OpenAI-compatible HTTP frontend. The HTTP interface
+supports Responses, Chat Completions and live ACP conversations.
 
 ## Start here
 
@@ -17,9 +18,10 @@ ACP stdio frontend or an OpenAI Responses HTTP frontend with live ACP conversati
 - [Streaming event behavior](usage.md#streaming)
 - [Complete OpenAPI contract](openapi.yaml)
 
-The HTTP subset includes model discovery, Responses generation and process-local
-conversation create/get/metadata-update/delete. It does not implement Chat
-Completions, stored responses or conversation item/history endpoints.
+The HTTP subset includes model discovery, Responses generation, stateless Chat
+Completions and process-local conversation create/get/metadata-update/delete.
+It does not implement legacy Completions, stored responses or conversation
+item/history endpoints.
 
 ## Reference and operations
 

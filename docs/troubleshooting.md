@@ -27,11 +27,11 @@ directly; do not interpret `upstream RPC failed` as a specific root cause.
 
 ## The endpoint returns 404
 
-Use `POST /v1/responses`, not `/v1/chat/completions` or `/v1/completions`.
-The supported routes include model discovery, Responses and conversation
-create/get/metadata-update/delete. Conversation items/history and stored
-response retrieval are unsupported. A Responses SDK
-should use base URL `http://127.0.0.1:8080/v1` and its Responses operation.
+Use `POST /v1/responses` or `POST /v1/chat/completions`; legacy
+`POST /v1/completions` is unsupported. The supported routes also include model
+discovery and conversation create/get/metadata-update/delete. Conversation
+items/history and stored response retrieval are unsupported. An OpenAI SDK
+should use base URL `http://127.0.0.1:8080/v1` and its matching operation.
 A 404 during model setup can also mean the model is unknown/unavailable.
 `conversation_not_found` means the handle was deleted, belongs to another
 serving process or was lost after restart.
@@ -48,10 +48,13 @@ capability does not promise vision support in every model.
 
 ## HTTP 200, but no successful answer
 
-Inspect `status`, `error` and `incomplete_details`. Generation errors are failed
-Response objects; a provider token limit produces `incomplete`. Collected text
-may be retained. With streaming, inspect the terminal `response.completed`,
-`response.incomplete` or `response.failed` event. There is no `[DONE]` sentinel.
+For Responses, inspect `status`, `error` and `incomplete_details`. Generation
+errors are failed Response objects; a provider token limit produces `incomplete`.
+Collected text may be retained. With streaming, inspect the terminal
+`response.completed`, `response.incomplete` or `response.failed` event; there is
+no `[DONE]` sentinel. Chat Completions uses `finish_reason:"stop"` or `"length"`
+and successful streams end in `[DONE]`. A Chat generation failure uses an error
+object, including as a data frame when streaming has already started.
 
 Interactive permission requests over HTTP are cancelled, causing failure. Use
 an ACP client to handle permission requests interactively. Other provider-native

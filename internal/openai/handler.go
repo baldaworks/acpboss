@@ -106,7 +106,7 @@ type responseFunc func(http.ResponseWriter)
 func (f responseFunc) VisitCreateResponseResponse(w http.ResponseWriter) error { f(w); return nil }
 
 func (h *Handler) CreateResponse(ctx context.Context, request api.CreateResponseRequestObject) (api.CreateResponseResponseObject, error) {
-	n, err := normalize(*request.Body)
+	n, err := normalizeResponse(*request.Body)
 	if err != nil {
 		var input *inputError
 		_ = errors.As(err, &input)
@@ -125,55 +125,9 @@ func (h *Handler) respond(parent context.Context, w http.ResponseWriter, n norma
 		}
 	}
 
-	select {
-	case h.slots <- struct{}{}:
-		defer func() { <-h.slots }()
-	default:
-		writeError(w, 429, "proxy capacity exhausted", "", "capacity_exceeded")
-		return
-	}
-	ctx, cancel := context.WithTimeout(parent, h.router.Config.Settings.RequestTimeout)
-	defer cancel()
-	id, finish, err := h.prepareTurn(ctx, n.Conversation, n.Model)
-	if err != nil {
-		writeSetupError(w, err, "model")
-		return
-	}
-	defer finish()
-	blocks := n.Blocks
-	if blocks == nil {
-		blocks = proxy.TextPrompt(n.Prompt)
-	}
-	if err := h.router.ValidatePrompt(id, blocks); err != nil {
-		var content *proxy.ContentError
-		if errors.As(err, &content) {
-			param := "input"
-			if content.Index < len(n.Sources) {
-				param = n.Sources[content.Index]
-			}
-			writeError(w, 400, content.Error(), param, "unsupported_or_invalid_content")
-		} else {
-			writeError(w, 502, "provider unavailable before prompting", "model", "provider_setup_failed")
-		}
-		return
-	}
 	b := newBuilder(n, h.router.Config.Settings.MaxMessageBytes)
 	var stream *eventStream
-	if n.Stream {
-		stream = newStream(w, h.router.Config.Settings.RequestTimeout)
-		if err := stream.begin(ctx, b); err != nil {
-			return
-		}
-	}
-	result, err := h.router.Prompt(ctx, id, blocks, func(note map[string]any) error {
-		update, _ := note["update"].(map[string]any)
-		if update["sessionUpdate"] == "agent_message_chunk" {
-			content, _ := update["content"].(map[string]any)
-			if content["type"] != "text" {
-				return errors.New("provider returned assistant content unsupported by HTTP Responses; use the ACP frontend for multimodal output")
-			}
-		}
-		text := proxy.Text(note)
+	callbacks := turnCallbacks{delta: func(ctx context.Context, text string) error {
 		if err := b.append(text); err != nil {
 			return err
 		}
@@ -181,17 +135,38 @@ func (h *Handler) respond(parent context.Context, w http.ResponseWriter, n norma
 			return stream.delta(ctx, b, text)
 		}
 		return nil
-	})
+	}}
+	if n.Stream {
+		stream = newStream(w, h.router.Config.Settings.RequestTimeout)
+		callbacks.start = func(ctx context.Context) error { return stream.begin(ctx, b) }
+	}
+	result, err := h.runTurn(parent, n, callbacks)
+	if err != nil {
+		writeTurnError(w, err)
+		return
+	}
 	if parent.Err() != nil {
 		return
 	}
-	reason, _ := result["stopReason"].(string)
-	final := b.finish(reason, err)
+	final := b.finish(result.reason, result.err)
 	if stream != nil {
 		_ = stream.finish(parent, b, final)
 		return
 	}
 	writeJSON(w, 200, final)
+}
+
+func writeTurnError(w http.ResponseWriter, err error) {
+	var output *turnOutputError
+	if errors.As(err, &output) {
+		return
+	}
+	var content *turnContentError
+	if errors.As(err, &content) {
+		writeError(w, 400, content.Error(), content.param, "unsupported_or_invalid_content")
+		return
+	}
+	writeSetupError(w, err, "model")
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -203,6 +178,9 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 func writeError(w http.ResponseWriter, status int, message, param, code string) {
+	writeJSON(w, status, errorValue(status, message, param, code))
+}
+func errorValue(status int, message, param, code string) api.Error {
 	kind := api.ErrorErrorTypeInvalidRequestError
 	if status >= 500 {
 		kind = api.ErrorErrorTypeServerError
@@ -214,7 +192,7 @@ func writeError(w http.ResponseWriter, status int, message, param, code string) 
 	if param != "" {
 		value.Error.Param = &param
 	}
-	writeJSON(w, status, value)
+	return value
 }
 
 // requestRoute keeps exact paths/method errors stable around generated routing.
@@ -223,6 +201,11 @@ func requestRoute(path, method string) (string, string) {
 	case "/v1/responses":
 		if method == http.MethodPost {
 			return "CreateResponse", "POST"
+		}
+		return "invalid-method", "POST"
+	case "/v1/chat/completions":
+		if method == http.MethodPost {
+			return "CreateChatCompletion", "POST"
 		}
 		return "invalid-method", "POST"
 	case "/v1/conversations":

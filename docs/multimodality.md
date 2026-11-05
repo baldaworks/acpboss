@@ -4,13 +4,13 @@ Provider-wide capabilities are checked before prompting. A capability describes
 what the executable can route; individual models/accounts may still reject a
 format. acpboss never switches your selected provider to satisfy a modality.
 
-| Content | ACP stdio input/output | Responses HTTP input | Responses HTTP output |
-| --- | --- | --- | --- |
-| Text | Yes | Yes | Yes |
-| Images | With provider support | Inline image data URL | Explicit failure on assistant image content |
-| Audio | With provider support | Unsupported | Unsupported |
-| Embedded files/resources | With provider support | Inline file data URL plus filename | Explicit failure on assistant resource content |
-| Resource links | Yes | Unsupported as a message part | Explicit failure on assistant link content |
+| Content | ACP stdio input/output | Responses HTTP input | Chat Completions input | HTTP output |
+| --- | --- | --- | --- | --- |
+| Text | Yes | Yes | Yes | Yes |
+| Images | With provider support | Inline image data URL | Inline user `image_url` data URL | Explicit failure on assistant image content |
+| Audio | With provider support | Unsupported | Unsupported | Unsupported |
+| Embedded files/resources | With provider support | Inline file data URL plus filename | Unsupported | Explicit failure on assistant resource content |
+| Resource links | Yes | Unsupported as a message part | Unsupported | Explicit failure on assistant link content |
 
 ACP initialization advertises the union of optional capabilities across live
 providers. Each prompt is then checked against the selected provider. Missing
@@ -45,6 +45,14 @@ The selected provider needs `image:true`. Match the MIME type to the actual
 bytes. Only absent/`auto` detail is supported: ACP has no equivalent selector
 for `low`, `high` or `original`. Remote URLs and uploaded `file_id` values are
 rejected; acpboss does not fetch image content.
+
+For Chat Completions, put the same data URL in a user content part:
+
+```json
+{"type":"image_url","image_url":{"url":"data:image/png;base64,BASE64_BYTES","detail":"auto"}}
+```
+
+Chat image parts are user-only. Text parts use `{"type":"text","text":"…"}`.
 
 ## Send a file over HTTP
 

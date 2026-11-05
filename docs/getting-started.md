@@ -91,6 +91,18 @@ Expect `status:"completed"` and the assistant text in
 `output[0].content[0].text`. `store` may be omitted or `false`. For SSE, add
 `"stream":true` and use `curl -N`.
 
+The same model is available through Chat Completions:
+
+```sh
+curl -sS http://127.0.0.1:8080/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"PROVIDER/UPSTREAM_MODEL_ID","messages":[{"role":"user","content":"Reply with exactly OK."}]}'
+```
+
+Read the answer from `choices[0].message.content`. Add `"stream":true` for
+data-only Chat Completion chunks ending in `data: [DONE]`. Chat requests are
+one-shot, so resend prior messages when continuing a chat.
+
 Model IDs split at the first slash: `opencode/openai/gpt-6.1-sol` routes to the
 OpenCode process with upstream ID `openai/gpt-6.1-sol`. Free models use exactly
 the same routing. Their availability changes; always discover actual IDs.

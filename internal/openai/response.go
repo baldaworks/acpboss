@@ -14,26 +14,36 @@ type outputMessage = api.OutputMessage
 type outputText = api.ResponseText
 type responseError = api.ResponseError
 type incompleteDetails = api.IncompleteDetails
+type boundedText struct {
+	limit int
+	text  strings.Builder
+}
+
+func newBoundedText(limit int) boundedText { return boundedText{limit: limit} }
+func (b *boundedText) append(text string) error {
+	if len(text)+b.text.Len() > b.limit {
+		return fmt.Errorf("response text exceeds configured limit")
+	}
+	_, _ = b.text.WriteString(text)
+	return nil
+}
+func (b *boundedText) String() string { return b.text.String() }
+
 type builder struct {
 	response response
 	message  outputMessage
-	limit    int
-	text     strings.Builder
+	text     boundedText
 }
 
 func newBuilder(n normalized, limit int) *builder {
-	b := &builder{response: response{Id: "resp_" + rand.Text(), Object: "response", CreatedAt: time.Now().Unix(), Status: "in_progress", Instructions: n.Instructions, Model: n.Model, Output: []outputMessage{}, Tools: []any{}, ToolChoice: "none", Text: textOptions()}, message: outputMessage{Id: "msg_" + rand.Text(), Type: "message", Role: "assistant", Status: "in_progress", Content: []outputText{{Type: "output_text", Annotations: []any{}, Logprobs: []any{}}}}, limit: limit}
+	b := &builder{response: response{Id: "resp_" + rand.Text(), Object: "response", CreatedAt: time.Now().Unix(), Status: "in_progress", Instructions: n.Instructions, Model: n.Model, Output: []outputMessage{}, Tools: []any{}, ToolChoice: "none", Text: textOptions()}, message: outputMessage{Id: "msg_" + rand.Text(), Type: "message", Role: "assistant", Status: "in_progress", Content: []outputText{{Type: "output_text", Annotations: []any{}, Logprobs: []any{}}}}, text: newBoundedText(limit)}
 	if n.Conversation != "" {
 		b.response.Conversation = &api.ConversationReference{Id: n.Conversation}
 	}
 	return b
 }
 func (b *builder) append(text string) error {
-	if len(text)+b.text.Len() > b.limit {
-		return fmt.Errorf("response text exceeds configured limit")
-	}
-	_, _ = b.text.WriteString(text)
-	return nil
+	return b.text.append(text)
 }
 func (b *builder) finish(reason string, err error) response {
 	b.message.Content[0].Text = b.text.String()
