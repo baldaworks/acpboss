@@ -18,7 +18,7 @@ import (
 )
 
 // Handler dispatches a provider callback, retaining the provider connection identity.
-type Handler func(context.Context, string, string, json.RawMessage) (any, error)
+type Handler func(context.Context, *Process, string, json.RawMessage) (any, error)
 
 // Process owns one ACP process and one SDK connection.
 type Process struct {
@@ -68,7 +68,7 @@ func Start(ctx context.Context, c config.Resolved, s config.Settings, handler Ha
 		if handler == nil {
 			return nil, acp.NewMethodNotFound(method)
 		}
-		value, err := handler(ctx, c.ID, method, raw)
+		value, err := handler(ctx, p, method, raw)
 		if err != nil {
 			var re *acp.RequestError
 			if errors.As(err, &re) {

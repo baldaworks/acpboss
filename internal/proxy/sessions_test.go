@@ -54,6 +54,51 @@ func TestProviderSwitchRetainsSeparateHistory(t *testing.T) {
 	}
 }
 
+func TestRecoveredProviderIsAvailableOnlyToNewSessions(t *testing.T) {
+	r := testRouter(t)
+	oldSession, err := r.PrepareHTTP(t.Context(), "alpha/org/model")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.mu.Lock()
+	oldProcess := r.sessions[oldSession].bindings["alpha"].process
+	manager := r.manager
+	r.mu.Unlock()
+	oldGeneration, ok := manager.Generation(oldProcess)
+	if !ok {
+		t.Fatal("initial provider generation is not published")
+	}
+	if _, err := r.Prompt(t.Context(), oldSession, TextPrompt("crash"), nil); err == nil {
+		t.Fatal("crashed provider prompt succeeded")
+	}
+	waitFor(t, 3*time.Second, func() bool {
+		for _, process := range r.processes() {
+			if process.Config.ID == "alpha" && process != oldProcess {
+				for _, model := range r.Catalog() {
+					if model.ID == "alpha/org/model" {
+						return true
+					}
+				}
+			}
+		}
+		return false
+	})
+	if _, err := r.Prompt(t.Context(), oldSession, TextPrompt("old"), nil); !errors.Is(err, ErrUnknownModel) {
+		t.Fatal("old session was silently rebound", err)
+	}
+	newSession, err := r.PrepareHTTP(t.Context(), "alpha/org/model")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Prompt(t.Context(), newSession, TextPrompt("new"), nil); err != nil {
+		t.Fatal("recovered provider is unusable", err)
+	}
+	r.providerUnavailable("alpha", oldGeneration)
+	if _, err := r.PrepareHTTP(t.Context(), "alpha/org/model"); err != nil {
+		t.Fatal("stale generation removed recovered catalog", err)
+	}
+}
+
 func TestStatelessHTTPAndPermissions(t *testing.T) {
 	r := testRouter(t)
 	first, err := r.PrepareHTTP(t.Context(), "alpha/org/model")
@@ -301,18 +346,31 @@ func TestInactiveProviderCallbacksCannotEnterActiveTurn(t *testing.T) {
 		t.Fatal("prompt did not start")
 	}
 	r.mu.Lock()
-	sid := r.sessions[id].bindings["alpha"].id
+	alpha := r.sessions[id].bindings["alpha"]
+	sid := alpha.id
 	r.mu.Unlock()
 	update, _ := json.Marshal(map[string]any{"sessionId": sid, "update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "late alpha"}}})
-	if _, err := r.handle(t.Context(), "alpha", "session/update", update); err != nil {
+	if _, err := r.handle(t.Context(), alpha.process, "session/update", update); err != nil {
 		t.Fatal(err)
 	}
 	permission, _ := json.Marshal(map[string]any{"sessionId": sid})
-	if _, err := r.handle(t.Context(), "alpha", "session/request_permission", permission); err != nil {
+	if _, err := r.handle(t.Context(), alpha.process, "session/request_permission", permission); err != nil {
 		t.Fatal(err)
 	}
 	r.Cancel(id)
 	if err := <-done; !errors.Is(err, context.Canceled) {
 		t.Fatal("inactive permission cancelled selected provider", err)
 	}
+}
+
+func waitFor(t *testing.T, timeout time.Duration, condition func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("condition was not satisfied")
 }

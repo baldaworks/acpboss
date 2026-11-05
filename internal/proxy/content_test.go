@@ -26,6 +26,9 @@ func TestMultimodalRoutingAndRejection(t *testing.T) {
 			t.Error(err)
 		}
 	})
+	if err := r.WaitProviderStartup(t.Context()); err != nil {
+		t.Fatal(err)
+	}
 	caps := r.PromptCapabilities()
 	if !caps.Image || !caps.Audio || !caps.EmbeddedContext {
 		t.Fatal(caps)

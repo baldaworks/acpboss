@@ -56,6 +56,9 @@ func (s *server) handle(ctx context.Context, method string, raw json.RawMessage)
 		if err := s.router.Start(s.app); err != nil {
 			return nil, protocol.RequestError(err)
 		}
+		if err := s.router.WaitProviderStartup(ctx); err != nil {
+			return nil, protocol.RequestError(err)
+		}
 		s.mu.Lock()
 		s.initialized = true
 		s.mu.Unlock()

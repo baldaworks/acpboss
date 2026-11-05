@@ -8,9 +8,12 @@ Configure your ACP client to launch:
 acpboss stdio --config /absolute/path/to/config.yaml
 ```
 
-Initialization starts all configured providers. Model choices are presented as
-`provider/upstream-id`, including upstream IDs that themselves contain slashes.
-Select through `session/set_config_option` with `configId:"model"`.
+Initialization starts independent supervisors and lets every provider complete
+one bounded initial attempt. Failed providers remain under retry rather than
+failing the frontend. Model choices contain the providers that were live when
+the logical session was created and use `provider/upstream-id`, including
+upstream IDs that themselves contain slashes. Select through
+`session/set_config_option` with `configId:"model"`.
 
 A logical ACP session keeps a separate backend session per provider. Switching
 A → B → A resumes A's own history; histories are not copied between providers.
@@ -40,10 +43,13 @@ Start `acpboss api --config config.yaml`. Supported routes are:
 | `POST /v1/conversations/{id}` | Replace metadata; `metadata:null` clears it. |
 | `DELETE /v1/conversations/{id}` | Remove the handle and release its native sessions. |
 
-The catalog is discovered at server startup and excludes dead provider
-connections. Restart to rediscover changed model availability. Without a
-`conversation` selector, generation creates an isolated session on the selected
-provider and releases it when finished.
+The catalog contains only ready provider generations. It can initially be empty,
+loses a provider when that process exits, and gains it after lifecycle recovery
+and fresh discovery. Existing conversations are never rebound to the recovered
+generation; create a new conversation to use it. Restart only to rediscover
+model changes made by an already-running provider. Without a `conversation`
+selector, generation creates an isolated session on the selected provider and
+releases it when finished.
 
 ```sh
 curl -sS http://127.0.0.1:8080/v1/responses \

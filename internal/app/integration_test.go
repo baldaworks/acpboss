@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -16,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	bossapp "github.com/baldaworks/acpboss/internal/app"
 	"github.com/baldaworks/acpboss/internal/protocol"
 	"github.com/baldaworks/acpboss/internal/proxy"
 	"github.com/baldaworks/acpboss/internal/testprovider"
@@ -185,6 +187,7 @@ func TestBinaryModes(t *testing.T) {
 				case <-time.After(5 * time.Second):
 					t.Fatal("HTTP readiness timed out")
 				}
+				waitHTTPModel(t, "http://"+address+"/v1/", "beta/other")
 				client := responses.NewResponseService(option.WithBaseURL("http://"+address+"/v1/"), option.WithAPIKey("fixture"), option.WithMaxRetries(0), option.WithHTTPClient(&http.Client{Timeout: 5 * time.Second}))
 				params := responses.ResponseNewParams{Model: shared.ResponsesModel("beta/other"), Store: param.NewOpt(false), Input: responses.ResponseNewParamsInputUnion{OfString: param.NewOpt("http")}}
 				value, err := client.New(t.Context(), params)
@@ -254,8 +257,11 @@ func TestBinaryModes(t *testing.T) {
 				t.Fatal("CLI shutdown hung")
 			}
 			output := <-logs
-			if mode == "stdio" && output != "" {
-				t.Fatal("unexpected diagnostics", output)
+			if !strings.Contains(output, "lifecycle state=ready") {
+				t.Fatal("missing lifecycle diagnostics", output)
+			}
+			if strings.Contains(output, "ACPBOSS_FIXTURE") {
+				t.Fatal("provider environment leaked into diagnostics", output)
 			}
 			if runtime.GOOS == "linux" {
 				for _, file := range pidfiles {
@@ -276,6 +282,73 @@ func TestBinaryModes(t *testing.T) {
 			_ = stderr.Close()
 		})
 	}
+}
+
+func TestHTTPStartsWithAllProvidersUnavailableAndStopsRetries(t *testing.T) {
+	c := testprovider.Config(t, map[string]string{"missing": ""})
+	provider := c.Runtime.Providers["missing"]
+	provider.Cmd = filepath.Join(t.TempDir(), "missing-provider")
+	c.Runtime.Providers["missing"] = provider
+	c.Settings.HTTP.Listen = "127.0.0.1:0"
+	c.Settings.ShutdownTimeout = time.Second
+
+	ctx, cancel := context.WithCancel(t.Context())
+	diagnosticReader, diagnosticWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := make(chan string, 32)
+	go func() {
+		scanner := bufio.NewScanner(diagnosticReader)
+		for scanner.Scan() {
+			lines <- scanner.Text()
+		}
+		close(lines)
+	}()
+	done := make(chan error, 1)
+	go func() {
+		done <- bossapp.Run(ctx, "api", c, strings.NewReader(""), io.Discard, diagnosticWriter)
+	}()
+
+	var address string
+	deadline := time.NewTimer(3 * time.Second)
+	defer deadline.Stop()
+	for address == "" {
+		select {
+		case line := <-lines:
+			if value, ok := strings.CutPrefix(line, "acpboss listening on "); ok {
+				address = value
+			}
+		case <-deadline.C:
+			t.Fatal("HTTP listener did not become ready")
+		}
+	}
+	response, err := http.Get("http://" + address + "/v1/models")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	var models struct {
+		Data []any
+	}
+	if err := json.NewDecoder(response.Body).Decode(&models); err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK || len(models.Data) != 0 {
+		t.Fatalf("degraded model catalog: status=%d models=%v", response.StatusCode, models.Data)
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("shutdown did not interrupt provider retry")
+	}
+	_ = diagnosticWriter.Close()
+	_ = diagnosticReader.Close()
 }
 
 func TestHTTPConversationRestart(t *testing.T) {
@@ -341,6 +414,7 @@ func TestHTTPConversationRestart(t *testing.T) {
 		t.Cleanup(stop)
 		select {
 		case address := <-ready:
+			waitHTTPModel(t, address, "alpha/org/model")
 			return address, stop
 		case <-time.After(5 * time.Second):
 			t.Fatal("restart readiness timed out")
@@ -375,4 +449,30 @@ func TestHTTPConversationRestart(t *testing.T) {
 	if response.StatusCode != 404 {
 		t.Fatal("restarted process recovered runtime handle", response.StatusCode)
 	}
+}
+
+func waitHTTPModel(t *testing.T, baseURL, want string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		response, err := http.Get(baseURL + "models")
+		if err == nil {
+			var catalog struct {
+				Data []struct {
+					ID string
+				}
+			}
+			decodeErr := json.NewDecoder(response.Body).Decode(&catalog)
+			_ = response.Body.Close()
+			if decodeErr == nil {
+				for _, model := range catalog.Data {
+					if model.ID == want {
+						return
+					}
+				}
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("model %q did not become ready", want)
 }
