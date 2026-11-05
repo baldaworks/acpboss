@@ -27,9 +27,9 @@ func settings(t *testing.T) config.Settings {
 
 func TestProcessLifetimeAndNotificationBarrier(t *testing.T) {
 	s := settings(t)
-	s.StartupTimeout = 80 * time.Millisecond
+	s.StartupTimeout = 500 * time.Millisecond
 	var updates []string
-	p, err := Start(t.Context(), fixture(t, "alpha", ""), s, func(_ context.Context, _, method string, raw json.RawMessage) (any, error) {
+	p, err := Start(t.Context(), fixture(t, "alpha", ""), s, func(_ context.Context, _ *Process, method string, raw json.RawMessage) (any, error) {
 		if method == "session/update" {
 			var n struct {
 				Update struct{ Content struct{ Text string } }

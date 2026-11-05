@@ -14,10 +14,12 @@ Run the configured command directly in the intended working directory, using
 the same PATH and environment. For `npx`, ensure Node/npm and the pinned adapter
 can run. Authenticate with the provider's own CLI before HTTP operation.
 
-All configured providers must initialize successfully; startup rolls back owned
-processes if one fails. Remove providers you do not intend to run from your
-config. `inherit_env:false` removes inherited credentials/environment from the
-child, though executable lookup still uses acpboss's PATH.
+Provider failures do not stop the HTTP listener or healthy providers. acpboss
+retries executable lookup, launch and ACP initialization with bounded backoff.
+The unavailable provider is absent from `/v1/models`; requests selecting it fail
+explicitly until it recovers. Remove providers you do not intend to run from
+your config. `inherit_env:false` removes inherited credentials/environment
+from the child, though executable lookup still uses acpboss's PATH.
 
 Provider stderr and raw SDK diagnostics are intentionally discarded during
 normal operation because they can contain credentials. Diagnose the provider
@@ -38,7 +40,9 @@ serving process or was lost after restart.
 
 Copy the complete ID from `/v1/models`. Routing splits only the first slash:
 `opencode/opencode/MODEL_ID` can be correct. Free-model IDs and account access
-can change. HTTP discovers its catalog at startup; restart to rediscover it.
+can change. HTTP discovers a provider's catalog whenever that provider becomes
+ready. A recovered provider is added automatically; restart to rediscover model
+changes made by an already-running provider.
 A listed model is not proof of generation access, and a provider-wide image
 capability does not promise vision support in every model.
 
@@ -81,9 +85,11 @@ Wait for it to drain before the next turn. Different conversations are isolated.
 Client disconnect, request timeout and a slow output consumer cancel the owning
 backend prompt. A binding stays busy until the provider returns or its bounded
 RPC deadline expires; an unacknowledged timeout makes that binding unusable.
-No native binding is automatically recreated with empty context. There is no
-automatic provider-process restart. Other sessions/providers stay
-isolated; restart the serving process to establish fresh provider processes.
+No native binding is automatically recreated with empty context. A stopped
+provider process is restarted automatically, but conversations bound to its old
+generation remain unusable so provider-owned history is never silently reset.
+Create a new conversation to use the recovered provider. Other sessions and
+providers stay isolated.
 
 ## Separate discovery from generation
 

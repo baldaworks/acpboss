@@ -74,11 +74,12 @@ Model discovery and selection use the following mapping:
 | Legacy `models` | Read `currentModelId` and `availableModels[].modelId/name` when modern choices are absent. | `session/set_model` with unqualified `modelId`. |
 
 `GET /v1/models` returns `id:<provider>/<upstream>`, `owned_by:<provider>`,
-`object:model`, and `created:0`, sorted by qualified ID. HTTP discovers this
-catalog at startup using temporary sessions; it is not a live vendor catalog
-fetch on each request. Dead provider connections are excluded. Restart the
-process to rediscover changed availability. Discovery does not prove that the
-account can generate with every advertised model.
+`object:model`, and `created:0`, sorted by qualified ID. HTTP discovers each
+provider generation with a temporary session before publishing it. It is not a
+live vendor catalog fetch on each request. Dead generations are removed and
+recovered generations are discovered automatically. Restart the process only
+to rediscover model changes made by an already-running provider. Discovery does
+not prove that the account can generate with every advertised model.
 
 ## HTTP request to ACP calls
 
@@ -252,7 +253,7 @@ set of ACP updates than the HTTP frontend:
 
 | ACP client operation | Provider mapping |
 | --- | --- |
-| `initialize` | Start and initialize all configured providers; return protocol version 1, `acpboss` identity, session-close capability, aggregated auth methods, and the union of optional prompt capabilities across live providers. |
+| `initialize` | Start provider supervisors, wait for each first bounded attempt without failing on unavailable providers, then return protocol version 1, `acpboss` identity, session-close capability, aggregated auth methods, and the union of optional prompt capabilities across live providers. |
 | `authenticate` with `<provider>/<method>` | Call only that provider's `authenticate` with the unqualified `methodId`. |
 | `session/new` | Create a backend session in every live configured provider; forward the client's absolute `cwd` and `mcpServers`. Return a new logical `sessionId`. |
 | `session/set_config_option`, `configId:model` | Split the qualified model, select its owning provider and model, return an aggregate snapshot. |

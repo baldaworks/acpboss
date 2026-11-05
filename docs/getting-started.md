@@ -40,9 +40,11 @@ To add Codex, add another provider under the same `providers` map:
       cmd: "npx -y codex-acp@1.11.0"
 ```
 
-Each configured provider must start and initialize successfully. Include only
-providers you can run. The [example configuration](../examples/config.yaml)
-contains both commands and explicit default settings.
+Each configured provider has an independent lifecycle. acpboss keeps serving
+when one or all providers are unavailable and retries executable lookup, launch,
+ACP initialization and later process exits with bounded backoff. The
+[example configuration](../examples/config.yaml) contains both commands and
+explicit default settings.
 
 ## 3. Start one interface
 
@@ -52,8 +54,9 @@ For applications and SDKs:
 ./bin/acpboss api --config config.yaml
 ```
 
-The default listener is `127.0.0.1:8080`. Readiness is printed to stderr. Providers
-are initialized and model discovery completes before the listener starts.
+The default listener is `127.0.0.1:8080`. Listener readiness is printed to
+stderr without waiting for providers. `GET /v1/models` can initially be empty;
+models appear as their providers initialize and complete discovery.
 
 For an ACP client, supply these executable arguments in that client's agent
 configuration:

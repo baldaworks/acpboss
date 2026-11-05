@@ -28,13 +28,21 @@ var (
 
 // Permission routes a permission request to the owning ACP client.
 type Permission func(context.Context, map[string]any) (any, error)
-type route struct{ provider, session string }
+type route struct {
+	process *provider.Process
+	session string
+}
 type binding struct {
 	unusable bool
 	id       string
 	process  *provider.Process
 	metadata *provider.Metadata
 	session  *session
+}
+type catalogEntry struct {
+	process    *provider.Process
+	metadata   *provider.Metadata
+	generation uint64
 }
 type operation struct {
 	ctx     context.Context
@@ -58,17 +66,20 @@ type Router struct {
 	manager   *provider.Manager
 	sessions  map[string]*session
 	routes    map[route]*binding
-	catalog   map[string]*provider.Metadata
+	catalog   map[string]catalogEntry
+	pending   map[string]catalogEntry
+	discovery bool
+	events    chan provider.LifecycleEvent
 	semaphore chan struct{}
 	closed    bool
 }
 
 // New constructs an unstarted router; ACP initializes it on frontend initialize.
 func New(c config.Config) *Router {
-	return &Router{Config: c, sessions: map[string]*session{}, routes: map[route]*binding{}, catalog: map[string]*provider.Metadata{}, semaphore: make(chan struct{}, c.Settings.MaxInFlight)}
+	return &Router{Config: c, sessions: map[string]*session{}, routes: map[route]*binding{}, catalog: map[string]catalogEntry{}, pending: map[string]catalogEntry{}, events: make(chan provider.LifecycleEvent, 128), semaphore: make(chan struct{}, c.Settings.MaxInFlight)}
 }
 
-// Start atomically starts all configured provider processes once.
+// Start starts independent provider supervisors once.
 func (r *Router) Start(ctx context.Context) error {
 	r.startMu.Lock()
 	defer r.startMu.Unlock()
@@ -82,7 +93,13 @@ func (r *Router) Start(ctx context.Context) error {
 	if started {
 		return nil
 	}
-	m, err := provider.StartAll(ctx, r.Config, r.handle)
+	hooks := provider.LifecycleHooks{
+		Probe:       r.probeProvider,
+		Ready:       r.providerReady,
+		Unavailable: r.providerUnavailable,
+		Transition:  r.providerTransition,
+	}
+	m, err := provider.StartBackground(ctx, r.Config, r.handle, hooks)
 	if err != nil {
 		return err
 	}
@@ -92,13 +109,43 @@ func (r *Router) Start(ctx context.Context) error {
 	return nil
 }
 
+// EnableDiscovery makes each provider prove model discovery before publication.
+func (r *Router) EnableDiscovery() {
+	r.mu.Lock()
+	r.discovery = true
+	r.mu.Unlock()
+}
+
+// LifecycleEvents returns bounded, sanitized provider transition diagnostics.
+// Slow consumers cannot block provider lifecycle progress.
+func (r *Router) LifecycleEvents() <-chan provider.LifecycleEvent { return r.events }
+
+// WaitProviderStartup waits until every provider completed its first bounded
+// attempt. Failures remain under lifecycle retry and do not fail the wait.
+func (r *Router) WaitProviderStartup(ctx context.Context) error {
+	r.mu.Lock()
+	manager := r.manager
+	r.mu.Unlock()
+	if manager == nil {
+		return fmt.Errorf("proxy is not initialized")
+	}
+	return manager.WaitInitial(ctx)
+}
+
+func (r *Router) providerTransition(event provider.LifecycleEvent) {
+	select {
+	case r.events <- event:
+	default:
+	}
+}
+
 func (r *Router) processes() []*provider.Process {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.manager == nil {
 		return nil
 	}
-	return r.manager.Processes
+	return r.manager.Snapshot()
 }
 
 // Close cancels work and reaps all children under the global shutdown budget.
@@ -115,6 +162,8 @@ func (r *Router) Close() error {
 	m := r.manager
 	r.sessions = map[string]*session{}
 	r.routes = map[route]*binding{}
+	r.catalog = map[string]catalogEntry{}
+	r.pending = map[string]catalogEntry{}
 	r.mu.Unlock()
 	if m != nil {
 		return m.Close()
@@ -122,23 +171,145 @@ func (r *Router) Close() error {
 	return nil
 }
 
-// Discover obtains the HTTP model catalog in bounded temporary sessions.
+// Discover enables HTTP model discovery. Individual provider failures are
+// retired and retried without discarding successful provider catalogs.
 func (r *Router) Discover(ctx context.Context) error {
-	id, err := r.Create(ctx, r.Config.Settings.WorkingDir, nil, nil, "")
+	r.EnableDiscovery()
+	r.mu.Lock()
+	manager := r.manager
+	r.mu.Unlock()
+	if manager == nil {
+		return fmt.Errorf("proxy is not initialized")
+	}
+	if err := manager.WaitInitial(ctx); err != nil {
+		return err
+	}
+	for _, process := range manager.Snapshot() {
+		generation, ok := manager.Generation(process)
+		if !ok {
+			continue
+		}
+		r.mu.Lock()
+		current := r.catalog[process.Config.ID]
+		alreadyDiscovered := current.process == process && current.generation == generation && current.metadata != nil
+		r.mu.Unlock()
+		if alreadyDiscovered {
+			continue
+		}
+		metadata, err := r.discoverProvider(ctx, process)
+		if err != nil {
+			closeCtx, cancel := context.WithTimeout(context.Background(), r.Config.Settings.ShutdownTimeout)
+			_ = process.Close(closeCtx)
+			cancel()
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			continue
+		}
+		r.publishCatalog(process, metadata, generation)
+	}
+	return nil
+}
+
+func (r *Router) probeProvider(ctx context.Context, process *provider.Process, generation uint64) error {
+	r.mu.Lock()
+	enabled := r.discovery
+	r.mu.Unlock()
+	if !enabled {
+		return nil
+	}
+	metadata, err := r.discoverProvider(ctx, process)
 	if err != nil {
 		return err
 	}
 	r.mu.Lock()
-	current := r.sessions[id]
-	if current == nil {
-		r.mu.Unlock()
-		return context.Canceled
-	}
-	for pid, b := range current.bindings {
-		r.catalog[pid] = b.metadata
+	if !r.closed {
+		r.pending[process.Config.ID] = catalogEntry{process: process, metadata: metadata, generation: generation}
 	}
 	r.mu.Unlock()
-	return r.Release(ctx, id)
+	return nil
+}
+
+func (r *Router) providerReady(process *provider.Process, generation uint64) {
+	r.mu.Lock()
+	entry, ok := r.pending[process.Config.ID]
+	if !ok || entry.process != process || entry.generation != generation {
+		discovery := r.discovery
+		r.mu.Unlock()
+		if discovery {
+			go r.discoverPublished(process, generation)
+		}
+		return
+	}
+	r.catalog[process.Config.ID] = entry
+	delete(r.pending, process.Config.ID)
+	r.mu.Unlock()
+}
+
+func (r *Router) discoverPublished(process *provider.Process, generation uint64) {
+	ctx, cancel := context.WithTimeout(context.Background(), r.Config.Settings.StartupTimeout)
+	defer cancel()
+	metadata, err := r.discoverProvider(ctx, process)
+	if err != nil {
+		closeCtx, closeCancel := context.WithTimeout(context.Background(), r.Config.Settings.ShutdownTimeout)
+		_ = process.Close(closeCtx)
+		closeCancel()
+		return
+	}
+	r.publishCatalog(process, metadata, generation)
+}
+
+func (r *Router) providerUnavailable(id string, generation uint64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if entry, ok := r.pending[id]; ok && entry.generation == generation {
+		delete(r.pending, id)
+	}
+	if entry, ok := r.catalog[id]; ok && entry.generation == generation {
+		delete(r.catalog, id)
+	}
+}
+
+func (r *Router) discoverProvider(ctx context.Context, process *provider.Process) (*provider.Metadata, error) {
+	id, err := r.create(ctx, r.Config.Settings.WorkingDir, nil, nil, process.Config.ID, []*provider.Process{process})
+	if err != nil {
+		return nil, err
+	}
+	r.mu.Lock()
+	current := r.sessions[id]
+	var metadata *provider.Metadata
+	if current != nil {
+		if backend := current.bindings[process.Config.ID]; backend != nil {
+			metadata = backend.metadata
+		}
+	}
+	r.mu.Unlock()
+	if metadata == nil {
+		_ = r.Release(ctx, id)
+		return nil, context.Canceled
+	}
+	if err := r.Release(ctx, id); err != nil {
+		return nil, err
+	}
+	return metadata, nil
+}
+
+func (r *Router) publishCatalog(process *provider.Process, metadata *provider.Metadata, generation uint64) {
+	r.mu.Lock()
+	manager := r.manager
+	r.mu.Unlock()
+	if manager == nil {
+		return
+	}
+	current, ok := manager.Generation(process)
+	if !ok || current != generation {
+		return
+	}
+	r.mu.Lock()
+	if !r.closed {
+		r.catalog[process.Config.ID] = catalogEntry{process: process, metadata: metadata, generation: generation}
+	}
+	r.mu.Unlock()
 }
 
 // Catalog returns a sorted snapshot excluding dead provider connections.
@@ -146,11 +317,9 @@ func (r *Router) Catalog() []Model {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var models []Model
-	if r.manager != nil {
-		for _, p := range r.manager.Processes {
-			if m := r.catalog[p.Config.ID]; m != nil {
-				models = append(models, AvailableModels(p, m)...)
-			}
+	for _, entry := range r.catalog {
+		if entry.metadata != nil {
+			models = append(models, AvailableModels(entry.process, entry.metadata)...)
 		}
 	}
 	sort.Slice(models, func(i, j int) bool { return models[i].ID < models[j].ID })
@@ -159,6 +328,16 @@ func (r *Router) Catalog() []Model {
 
 // Create makes a logical session across live providers, or one provider for HTTP.
 func (r *Router) Create(ctx context.Context, cwd string, mcp []any, permission Permission, only string) (string, error) {
+	r.mu.Lock()
+	initialized := r.manager != nil && !r.closed
+	r.mu.Unlock()
+	if !initialized {
+		return "", fmt.Errorf("proxy is not initialized")
+	}
+	return r.create(ctx, cwd, mcp, permission, only, r.processes())
+}
+
+func (r *Router) create(ctx context.Context, cwd string, mcp []any, permission Permission, only string, processes []*provider.Process) (string, error) {
 	if !filepath.IsAbs(cwd) {
 		return "", fmt.Errorf("session cwd must be absolute")
 	}
@@ -168,9 +347,9 @@ func (r *Router) Create(ctx context.Context, cwd string, mcp []any, permission P
 	}
 	s := &session{id: "session-" + rand.Text(), bindings: map[string]*binding{}, permission: permission, busy: true}
 	r.mu.Lock()
-	if r.closed || r.manager == nil {
+	if r.closed {
 		r.mu.Unlock()
-		return "", fmt.Errorf("proxy is not initialized")
+		return "", fmt.Errorf("proxy closed")
 	}
 	if len(r.sessions) >= r.Config.Settings.MaxSessions {
 		r.mu.Unlock()
@@ -186,7 +365,7 @@ func (r *Router) Create(ctx context.Context, cwd string, mcp []any, permission P
 			_ = r.Release(cleanup, s.id)
 		}
 	}()
-	for _, p := range r.processes() {
+	for _, p := range processes {
 		if !p.Alive() || (only != "" && p.Config.ID != only) {
 			continue
 		}
@@ -196,7 +375,7 @@ func (r *Router) Create(ctx context.Context, cwd string, mcp []any, permission P
 		}
 		b := &binding{id: meta.ID, process: p, metadata: meta, session: s}
 		r.mu.Lock()
-		key := route{p.Config.ID, meta.ID}
+		key := route{process: p, session: meta.ID}
 		if r.closed || r.sessions[s.id] != s {
 			r.mu.Unlock()
 			return "", context.Canceled
@@ -592,8 +771,8 @@ func (r *Router) Release(ctx context.Context, id string) error {
 		s.active.cancel(context.Canceled)
 	}
 	bindings := make([]*binding, 0, len(s.bindings))
-	for pid, b := range s.bindings {
-		delete(r.routes, route{pid, b.id})
+	for _, b := range s.bindings {
+		delete(r.routes, route{process: b.process, session: b.id})
 		bindings = append(bindings, b)
 	}
 	r.mu.Unlock()
@@ -637,14 +816,15 @@ func (r *Router) Authenticate(ctx context.Context, id string) error {
 	return fmt.Errorf("unknown authentication provider")
 }
 
-func (r *Router) handle(ctx context.Context, pid, method string, raw json.RawMessage) (any, error) {
+func (r *Router) handle(ctx context.Context, process *provider.Process, method string, raw json.RawMessage) (any, error) {
+	pid := process.Config.ID
 	var params map[string]any
 	if json.Unmarshal(raw, &params) != nil {
 		return nil, acp.NewInvalidParams(nil)
 	}
 	sid, _ := params["sessionId"].(string)
 	r.mu.Lock()
-	b := r.routes[route{pid, sid}]
+	b := r.routes[route{process: process, session: sid}]
 	if b == nil {
 		r.mu.Unlock()
 		if method == "session/update" {

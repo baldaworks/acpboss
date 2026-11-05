@@ -62,6 +62,10 @@ Start the HTTP interface:
 ./bin/acpboss api --config config.yaml
 ```
 
+The HTTP listener becomes ready independently of provider health. Each provider
+is supervised and retried in the background; an unavailable provider is absent
+from the model catalog until it recovers.
+
 In another terminal, discover models and send a request with an actual ID:
 
 ```sh

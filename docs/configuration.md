@@ -102,6 +102,10 @@ ACP clients supply their own absolute existing `session/new.cwd`.
 Timeouts must be positive. Limits must be positive, and `max_message_bytes`
 must be at least 1024. That setting bounds HTTP bodies, ACP frames and collected
 HTTP output text; base64, role framing and instruction prefixes also take space.
+`startup_timeout` bounds each provider initialization and discovery attempt;
+a failed provider then retries with internal bounded exponential backoff.
+`shutdown_timeout` bounds graceful cancellation of active providers and
+pending retry loops.
 There is no idle session eviction. Close unused ACP sessions and DELETE unused
 HTTP conversations. Retained conversations count against `max_sessions`;
 `max_in_flight` bounds creation and active requests, including native RPC drain.
