@@ -95,8 +95,27 @@ Model IDs split at the first slash: `opencode/openai/gpt-6.1-sol` routes to the
 OpenCode process with upstream ID `openai/gpt-6.1-sol`. Free models use exactly
 the same routing. Their availability changes; always discover actual IDs.
 
-To keep native context across requests, [create a conversation](usage.md#continue-a-conversation)
-and send its ID with each new input.
+## 5. Continue a conversation
+
+Create a process-local handle, then attach it to each Response while sending
+only the new input. This example uses `jq` to read the returned ID:
+
+```sh
+base=http://127.0.0.1:8080/v1
+conversation_id=$(curl -fsS "$base/conversations" \
+  -H 'Content-Type: application/json' -d '{}' | jq -r .id)
+curl -sS "$base/responses" -H 'Content-Type: application/json' \
+  -d "{\"model\":\"PROVIDER/UPSTREAM_MODEL_ID\",\"conversation\":\"$conversation_id\",\"input\":\"Remember violet.\"}"
+curl -sS "$base/responses" -H 'Content-Type: application/json' \
+  -d "{\"model\":\"PROVIDER/UPSTREAM_MODEL_ID\",\"conversation\":\"$conversation_id\",\"input\":\"What word?\"}"
+curl -sS -X DELETE "$base/conversations/$conversation_id"
+```
+
+An attached response includes `conversation:{"id":"conv_…"}`. Handles and
+their metadata remain in memory until DELETE or process shutdown; dialogue
+history remains native to each provider. See [conversation continuity and
+metadata](usage.md#continue-a-conversation) for update operations, concurrency
+rules and unsupported stored-history behavior.
 
 Stop the server with Ctrl-C. acpboss shuts down its owned provider processes.
 Next: [usage](usage.md), [configuration](configuration.md),
