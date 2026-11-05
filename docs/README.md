@@ -10,6 +10,17 @@ ACP stdio frontend or an OpenAI Responses HTTP frontend with live ACP conversati
 3. [Choose an interface](usage.md): ACP sessions or HTTP JSON/SSE and native conversation continuity.
 4. [Send images and files](multimodality.md): supported forms and provider requirements.
 
+## HTTP API
+
+- [Routes and request boundaries](usage.md#http-routes)
+- [Live conversations and metadata](usage.md#continue-a-conversation)
+- [Streaming event behavior](usage.md#streaming)
+- [Complete OpenAPI contract](openapi.yaml)
+
+The HTTP subset includes model discovery, Responses generation and process-local
+conversation create/get/metadata-update/delete. It does not implement Chat
+Completions, stored responses or conversation item/history endpoints.
+
 ## Reference and operations
 
 | Document | What it answers |

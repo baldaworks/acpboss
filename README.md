@@ -81,6 +81,27 @@ to launch the same binary with `stdio --config /absolute/path/to/config.yaml`.
 See the [full walkthrough](docs/getting-started.md) for Codex, streaming and
 connection examples.
 
+To keep provider-native context across requests, create a process-local
+conversation handle and send only the new input on each turn:
+
+```sh
+base=http://127.0.0.1:8080/v1
+conversation_id=$(curl -fsS "$base/conversations" \
+  -H 'Content-Type: application/json' \
+  -d '{"metadata":{"client":"readme"}}' | jq -r .id)
+curl -sS "$base/responses" \
+  -H 'Content-Type: application/json' \
+  -d "{\"model\":\"opencode/UPSTREAM_MODEL_ID\",\"conversation\":\"$conversation_id\",\"input\":\"Remember violet.\"}"
+curl -sS "$base/responses" \
+  -H 'Content-Type: application/json' \
+  -d "{\"model\":\"opencode/UPSTREAM_MODEL_ID\",\"conversation\":{\"id\":\"$conversation_id\"},\"input\":\"What word?\"}"
+curl -sS -X DELETE "$base/conversations/$conversation_id"
+```
+
+The string and `{"id":"conv_…"}` conversation selectors are equivalent. An
+attached Response includes `conversation:{"id":"conv_…"}` and always reports
+`store:false`.
+
 ## Choose your interface
 
 | | ACP stdio | Responses HTTP |
@@ -91,15 +112,28 @@ connection examples.
 | Output | ACP content and tool updates | Text JSON or Responses SSE |
 | Interactive permissions | Forwarded to the ACP client | Cancelled; response fails |
 
-Create a [live HTTP conversation](docs/usage.md#continue-a-conversation) to send
-only new input on each turn. acpboss keeps its session IDs in memory; providers
-own the history. Handles last until deletion or process shutdown.
+The supported HTTP API is:
 
-The HTTP interface implements **`/v1/responses`** and conversation lifecycle routes.
+| Route | Purpose |
+| --- | --- |
+| `GET /v1/models` | Discover currently available qualified model IDs. |
+| `POST /v1/responses` | Generate once or continue a live conversation. |
+| `POST /v1/conversations` | Create a handle with optional string metadata. |
+| `GET /v1/conversations/{id}` | Read handle identity, creation time and metadata. |
+| `POST /v1/conversations/{id}` | Replace metadata; `metadata:null` clears it. |
+| `DELETE /v1/conversations/{id}` | Delete the handle and release native sessions. |
+
+Conversation handles retain only routing metadata in acpboss; providers own
+the history. Handles last until deletion or process shutdown and are not
+recovered after restart. There are no conversation item/history endpoints or
+stored response branches, and `previous_response_id` must be omitted or null.
+
 `/v1/chat/completions` and `/v1/completions` return 404. Stored responses, remote
 media fetching, uploaded file IDs and HTTP audio are outside this subset.
 The HTTP listener defaults to localhost and has no built-in authentication or
-TLS. See [usage and boundaries](docs/usage.md) before integrating it.
+TLS. See [conversation details](docs/usage.md#continue-a-conversation),
+[usage and boundaries](docs/usage.md), and the [OpenAPI contract](docs/openapi.yaml)
+before integrating it.
 
 ## Documentation
 
