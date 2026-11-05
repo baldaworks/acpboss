@@ -1,13 +1,13 @@
 # acpboss documentation
 
 acpboss launches configured ACP provider processes and exposes them through an
-ACP stdio frontend or a stateless OpenAI Responses HTTP frontend.
+ACP stdio frontend or an OpenAI Responses HTTP frontend with live ACP conversations.
 
 ## Start here
 
 1. [Get started](getting-started.md): build, authenticate a provider and send a request.
 2. [Configure providers](configuration.md): launch commands, defaults, profiles and limits.
-3. [Choose an interface](usage.md): ACP sessions or HTTP JSON/SSE and conversation replay.
+3. [Choose an interface](usage.md): ACP sessions or HTTP JSON/SSE and native conversation continuity.
 4. [Send images and files](multimodality.md): supported forms and provider requirements.
 
 ## Reference and operations
@@ -19,11 +19,6 @@ ACP stdio frontend or a stateless OpenAI Responses HTTP frontend.
 | [OpenAPI contract](openapi.yaml) | Which HTTP request/response/error shapes are accepted? |
 | [Development](development.md) | How do I build, regenerate, test and validate real providers? |
 | [Contributing](../CONTRIBUTING.md) | How should I prepare a change? |
-
-## Architecture decisions
-
-- [Provider and protocol boundaries](adr/0001-acp-proxy.md)
-- [Multimodal routing and generated OpenAPI transport](adr/0002-multimodal-openapi.md)
 
 Use the [README](../README.md) for the project overview. The guides describe
 implemented behavior; an advertised provider model/capability is not a promise

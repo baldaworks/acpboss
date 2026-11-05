@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: go-task/setup-task@v2
+        with:
+          version: '3.44.0'
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -17,4 +20,4 @@ jobs:
             go.sum
             tools/go.sum
       - name: Verify, test, audit and build
-        run: make mod-verify generate-check fmt-check test race vet audit build
+        run: task mod-verify generate-check fmt-check test race vet audit build

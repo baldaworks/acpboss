@@ -16,11 +16,11 @@ preserve existing routing and session guarantees.
    [protocol mapping](docs/protocol-mapping.md).
 2. Add focused behavior tests for a bug or feature; normal tests must not use
    real accounts or contact model services.
-3. Update the OpenAPI source and run `make generate` when changing HTTP wire
+3. Update the OpenAPI source and run `task generate` when changing HTTP wire
    formats. Include generated artifacts with their specification changes.
 4. Update the user documentation for changed commands or behavior.
-5. Run `make check`. For dependency changes, also run `make tidy` and
-   `make mod-verify` in the documented workflow.
+5. Run `task check`. For dependency changes, also run `task tidy` and
+   `task mod-verify` in the documented workflow.
 
 Real-provider checks are opt-in. If relevant, record the exact provider/model,
 capability and outcome, including whether a feature was unsupported or actually

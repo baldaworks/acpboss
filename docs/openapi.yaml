@@ -2,11 +2,10 @@ openapi: 3.1.0
 info:
   title: acpboss Responses subset
   version: 0.2.0
-  description: Stateless ACP facade. Explicit store:false is required. Inline image
-    and file input maps to provider ACP capabilities. No remote media fetching, uploaded
-    file IDs, Chat Completions or stored continuation. Native ACP supports image,
-    audio and embedded resources; HTTP returns text and explicitly fails on non-text
-    assistant output.
+  description: ACP facade with process-local conversation handles. Responses may continue
+    a native ACP session by conversation ID or run one-shot. No message/response archive,
+    disk storage, restart recovery or previous_response_id branching. Store is omitted
+    or false; true is unsupported. HTTP output remains text.
 paths:
   /v1/models:
     get:
@@ -100,6 +99,323 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '409':
+          description: Conversation or native session busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/conversations:
+    post:
+      operationId: createConversation
+      responses:
+        '200':
+          description: Runtime conversation resource. No message archive or persistence.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+        '400':
+          description: Invalid or unsupported request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Unknown conversation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Conversation busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413':
+          description: Request body exceeds limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Capacity exhausted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: Provider setup failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Authentication required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '504':
+          description: Setup timeout.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConversation'
+  /v1/conversations/{conversation_id}:
+    get:
+      operationId: getConversation
+      responses:
+        '200':
+          description: Runtime conversation resource. No message archive or persistence.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+        '400':
+          description: Invalid or unsupported request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Unknown conversation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Conversation busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413':
+          description: Request body exceeds limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Capacity exhausted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: Provider setup failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Authentication required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '504':
+          description: Setup timeout.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+    post:
+      operationId: updateConversation
+      responses:
+        '200':
+          description: Runtime conversation resource. No message archive or persistence.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+        '400':
+          description: Invalid or unsupported request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Unknown conversation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Conversation busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413':
+          description: Request body exceeds limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Capacity exhausted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: Provider setup failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Authentication required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '504':
+          description: Setup timeout.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateConversation'
+    delete:
+      operationId: deleteConversation
+      responses:
+        '200':
+          description: Runtime conversation resource. No message archive or persistence.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletedConversation'
+        '400':
+          description: Invalid or unsupported request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Unknown conversation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Conversation busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413':
+          description: Request body exceeds limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Capacity exhausted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: Provider setup failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Authentication required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '504':
+          description: Setup timeout.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
 components:
   schemas:
     CreateResponse:
@@ -108,7 +424,6 @@ components:
       required:
       - model
       - input
-      - store
       properties:
         model:
           type: string
@@ -116,6 +431,7 @@ components:
         store:
           type: boolean
           const: false
+          default: false
         stream:
           type: boolean
           default: false
@@ -124,7 +440,7 @@ components:
         previous_response_id:
           type: 'null'
         conversation:
-          type: 'null'
+          $ref: '#/components/schemas/ConversationSelector'
         background:
           type: boolean
           const: false
@@ -247,6 +563,10 @@ components:
           $ref: '#/components/schemas/ResponseError'
         incomplete_details:
           $ref: '#/components/schemas/IncompleteDetails'
+        conversation:
+          oneOf:
+          - $ref: '#/components/schemas/ConversationReference'
+          - type: 'null'
     InputText:
       type: object
       additionalProperties: false
@@ -615,3 +935,78 @@ components:
       - $ref: '#/components/schemas/ContentPartEvent'
       - $ref: '#/components/schemas/TextDeltaEvent'
       - $ref: '#/components/schemas/TextDoneEvent'
+    ConversationMetadata:
+      type:
+      - object
+      - 'null'
+      maxProperties: 16
+      propertyNames:
+        maxLength: 64
+      additionalProperties:
+        type: string
+        maxLength: 512
+    Conversation:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - object
+      - created_at
+      - metadata
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          const: conversation
+        created_at:
+          type: integer
+          format: int64
+        metadata:
+          $ref: '#/components/schemas/ConversationMetadata'
+    ConversationReference:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      properties:
+        id:
+          type: string
+          minLength: 1
+    ConversationSelector:
+      oneOf:
+      - type: string
+        minLength: 1
+      - $ref: '#/components/schemas/ConversationReference'
+      - type: 'null'
+    CreateConversation:
+      type: object
+      additionalProperties: false
+      required: []
+      properties:
+        metadata:
+          $ref: '#/components/schemas/ConversationMetadata'
+    UpdateConversation:
+      type: object
+      additionalProperties: false
+      required:
+      - metadata
+      properties:
+        metadata:
+          $ref: '#/components/schemas/ConversationMetadata'
+    DeletedConversation:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - object
+      - deleted
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          const: conversation.deleted
+        deleted:
+          type: boolean
+          const: true

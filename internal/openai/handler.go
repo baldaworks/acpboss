@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/baldaworks/acpboss/internal/openai/api"
@@ -15,16 +16,17 @@ import (
 	acp "github.com/coder/acp-go-sdk"
 )
 
-// Handler serves the stateless Responses and model catalog endpoints.
+// Handler serves Responses, live conversation handles and the model catalog.
 type Handler struct {
-	router    *proxy.Router
-	slots     chan struct{}
-	transport http.Handler
+	router        *proxy.Router
+	slots         chan struct{}
+	transport     http.Handler
+	conversations *conversations
 }
 
 // New returns a handler with request admission that also covers session setup.
 func New(r *proxy.Router) *Handler {
-	h := &Handler{router: r, slots: make(chan struct{}, r.Config.Settings.MaxInFlight)}
+	h := &Handler{router: r, slots: make(chan struct{}, r.Config.Settings.MaxInFlight), conversations: newConversations(r.Config.Settings.MaxSessions)}
 	h.transport = api.Handler(api.NewStrictHandlerWithOptions(h, nil, api.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, _ error) {
 			writeError(w, 400, "invalid request body", "", "invalid_request")
@@ -42,15 +44,21 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.URL.Path != "/v1/responses" {
+	schemaName, allowed := requestRoute(r.URL.Path, r.Method)
+	if allowed == "" {
 		writeError(w, 404, "unsupported route", "", "unsupported_endpoint")
 		return
 	}
-	if r.Method != http.MethodPost {
-		w.Header().Set("Allow", "POST")
+	if schemaName == "invalid-method" {
+		w.Header().Set("Allow", allowed)
 		writeError(w, 405, "method not allowed", "", "method_not_allowed")
 		return
 	}
+	if schemaName == "" {
+		h.transport.ServeHTTP(w, r)
+		return
+	}
+
 	content, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || content != "application/json" {
 		writeError(w, 400, "Content-Type must be application/json", "", "invalid_request")
@@ -72,7 +80,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid JSON", "", "invalid_request")
 		return
 	}
-	schema, err := api.RequestSchema()
+	schema, err := api.Schema(schemaName)
 	if err != nil {
 		writeError(w, 500, "HTTP contract unavailable", "", "server_error")
 		return
@@ -126,27 +134,12 @@ func (h *Handler) respond(parent context.Context, w http.ResponseWriter, n norma
 	}
 	ctx, cancel := context.WithTimeout(parent, h.router.Config.Settings.RequestTimeout)
 	defer cancel()
-	id, err := h.router.PrepareHTTP(ctx, n.Model)
+	id, finish, err := h.prepareTurn(ctx, n.Conversation, n.Model)
 	if err != nil {
-		status := 502
-		var upstream *acp.RequestError
-		if errors.Is(err, proxy.ErrUnknownModel) {
-			status = 404
-		} else if errors.Is(err, proxy.ErrCapacity) {
-			status = 429
-		} else if errors.Is(err, context.DeadlineExceeded) {
-			status = 504
-		} else if errors.As(err, &upstream) && upstream.Code == -32000 {
-			status = 503
-		}
-		writeError(w, status, "provider setup failed or requested model unavailable", "model", "provider_setup_failed")
+		writeSetupError(w, err, "model")
 		return
 	}
-	defer func() {
-		cleanup, c := context.WithTimeout(context.Background(), h.router.Config.Settings.ShutdownTimeout)
-		defer c()
-		_ = h.router.Release(cleanup, id)
-	}()
+	defer finish()
 	blocks := n.Blocks
 	if blocks == nil {
 		blocks = proxy.TextPrompt(n.Prompt)
@@ -222,4 +215,58 @@ func writeError(w http.ResponseWriter, status int, message, param, code string) 
 		value.Error.Param = &param
 	}
 	writeJSON(w, status, value)
+}
+
+// requestRoute keeps exact paths/method errors stable around generated routing.
+func requestRoute(path, method string) (string, string) {
+	switch path {
+	case "/v1/responses":
+		if method == http.MethodPost {
+			return "CreateResponse", "POST"
+		}
+		return "invalid-method", "POST"
+	case "/v1/conversations":
+		if method == http.MethodPost {
+			return "CreateConversation", "POST"
+		}
+		return "invalid-method", "POST"
+	}
+	id, ok := strings.CutPrefix(path, "/v1/conversations/")
+	if !ok || id == "" || id == "." || id == ".." || strings.Contains(id, "/") {
+		return "", ""
+	}
+	switch method {
+	case http.MethodGet, http.MethodDelete:
+		return "", "GET, POST, DELETE"
+	case http.MethodPost:
+		return "UpdateConversation", "GET, POST, DELETE"
+	default:
+		return "invalid-method", "GET, POST, DELETE"
+	}
+}
+func (h *Handler) releaseSession(id string) {
+	cleanup, cancel := context.WithTimeout(context.Background(), h.router.Config.Settings.ShutdownTimeout)
+	defer cancel()
+	_ = h.router.Release(cleanup, id)
+}
+func writeSetupError(w http.ResponseWriter, err error, param string) {
+	status := 502
+	var upstream *acp.RequestError
+	switch {
+	case errors.Is(err, errConversationNotFound):
+		writeError(w, 404, "conversation not found", "conversation", "conversation_not_found")
+		return
+	case errors.Is(err, proxy.ErrUnknownModel):
+		status = 404
+	case errors.Is(err, proxy.ErrBusy):
+		writeError(w, 409, "conversation is busy", "conversation", "conversation_busy")
+		return
+	case errors.Is(err, proxy.ErrCapacity):
+		status = 429
+	case errors.Is(err, context.DeadlineExceeded):
+		status = 504
+	case errors.As(err, &upstream) && upstream.Code == -32000:
+		status = 503
+	}
+	writeError(w, status, "provider setup failed or requested model unavailable", param, "provider_setup_failed")
 }

@@ -102,7 +102,11 @@ ACP clients supply their own absolute existing `session/new.cwd`.
 Timeouts must be positive. Limits must be positive, and `max_message_bytes`
 must be at least 1024. That setting bounds HTTP bodies, ACP frames and collected
 HTTP output text; base64, role framing and instruction prefixes also take space.
-There is no idle session eviction: ACP clients should close unused sessions.
+There is no idle session eviction. Close unused ACP sessions and DELETE unused
+HTTP conversations. Retained conversations count against `max_sessions`;
+`max_in_flight` bounds creation and active requests, including native RPC drain.
+Handles live only in the serving process; there is no state path or recovery
+after restart. Provider-owned history follows the provider's own retention.
 
 CLI overrides:
 

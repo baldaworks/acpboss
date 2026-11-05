@@ -22,7 +22,11 @@ type builder struct {
 }
 
 func newBuilder(n normalized, limit int) *builder {
-	return &builder{response: response{Id: "resp_" + rand.Text(), Object: "response", CreatedAt: time.Now().Unix(), Status: "in_progress", Instructions: n.Instructions, Model: n.Model, Output: []outputMessage{}, Tools: []any{}, ToolChoice: "none", Text: textOptions()}, message: outputMessage{Id: "msg_" + rand.Text(), Type: "message", Role: "assistant", Status: "in_progress", Content: []outputText{{Type: "output_text", Annotations: []any{}, Logprobs: []any{}}}}, limit: limit}
+	b := &builder{response: response{Id: "resp_" + rand.Text(), Object: "response", CreatedAt: time.Now().Unix(), Status: "in_progress", Instructions: n.Instructions, Model: n.Model, Output: []outputMessage{}, Tools: []any{}, ToolChoice: "none", Text: textOptions()}, message: outputMessage{Id: "msg_" + rand.Text(), Type: "message", Role: "assistant", Status: "in_progress", Content: []outputText{{Type: "output_text", Annotations: []any{}, Logprobs: []any{}}}}, limit: limit}
+	if n.Conversation != "" {
+		b.response.Conversation = &api.ConversationReference{Id: n.Conversation}
+	}
+	return b
 }
 func (b *builder) append(text string) error {
 	if len(text)+b.text.Len() > b.limit {

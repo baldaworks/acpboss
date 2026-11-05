@@ -26,9 +26,13 @@ directly; do not interpret `upstream RPC failed` as a specific root cause.
 ## The endpoint returns 404
 
 Use `POST /v1/responses`, not `/v1/chat/completions` or `/v1/completions`.
-Only `GET /v1/models` and `POST /v1/responses` are implemented. A Responses SDK
+The supported routes include model discovery, Responses and conversation
+create/get/metadata-update/delete. Conversation items/history and stored
+response retrieval are unsupported. A Responses SDK
 should use base URL `http://127.0.0.1:8080/v1` and its Responses operation.
 A 404 during model setup can also mean the model is unknown/unavailable.
+`conversation_not_found` means the handle was deleted, belongs to another
+serving process or was lost after restart.
 
 ## A model is missing or rejected
 
@@ -51,7 +55,7 @@ tool settings remain under the provider's control.
 
 ## A request or media attachment returns 400/413
 
-Send `Content-Type: application/json` and explicit `store:false`. Unknown fields
+Send `Content-Type: application/json`; omit `store` or use `store:false`. Unknown fields
 are rejected; generation controls outside the documented subset are not passed
 through. Check `error.param` for a location.
 
@@ -67,14 +71,18 @@ fail the ACP frame preflight. See [multimodality](multimodality.md).
 
 ## Capacity, timeout or disconnected client
 
-Close unused ACP sessions; they have no idle eviction. `max_sessions` and
+Close unused ACP sessions and DELETE unused HTTP conversations; there is no idle eviction. `max_sessions` and
 `max_in_flight` reject excess work instead of queueing indefinitely. Adjust
 limits deliberately in [configuration](configuration.md).
+
+409 means that a turn or native RPC is still active on this conversation.
+Wait for it to drain before the next turn. Different conversations are isolated.
 
 Client disconnect, request timeout and a slow output consumer cancel the owning
 backend prompt. A binding stays busy until the provider returns or its bounded
 RPC deadline expires; an unacknowledged timeout makes that binding unusable.
-There is no automatic provider-process restart. Other sessions/providers stay
+No native binding is automatically recreated with empty context. There is no
+automatic provider-process restart. Other sessions/providers stay
 isolated; restart the serving process to establish fresh provider processes.
 
 ## Separate discovery from generation

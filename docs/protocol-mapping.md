@@ -25,8 +25,12 @@ that provider calls a Responses, Completions, or vendor-specific API.
 | Client request | Implementation |
 | --- | --- |
 | `GET /v1/models` | List qualified models discovered through ACP sessions. |
-| `POST /v1/responses` | Create a fresh provider session, select a model, send an ACP prompt, collect text, release the session. |
+| `POST /v1/responses` | Select an attached conversation or create an isolated session, select a model, prompt and collect text. Release isolated sessions after completion. |
 | `POST /v1/responses` with `stream:true` | The same lifecycle with typed Responses SSE events. |
+| `POST /v1/conversations` | Create a logical session with native bindings for all live providers; return a process-local handle. Optional metadata only. |
+| `GET /v1/conversations/{id}` | Return identity, created time and supplied metadata; no prompt or history lookup. |
+| `POST /v1/conversations/{id}` | Replace metadata; `metadata:null` clears it. |
+| `DELETE /v1/conversations/{id}` | Remove the handle, cancel active work and release its native bindings. |
 | `/v1/chat/completions` | HTTP 404, `unsupported_endpoint`. |
 | `/v1/completions` | HTTP 404, `unsupported_endpoint`. |
 | Other paths, including stored-response retrieval | HTTP 404, `unsupported_endpoint`. |
@@ -81,17 +85,31 @@ account can generate with every advertised model.
 For each valid `POST /v1/responses`, `acpboss` performs:
 
 1. Validate the HTTP body and locate the qualified model in the catalog.
-2. Send `session/new` to the selected provider with the configured absolute
-   `working_dir` as `cwd` and `mcpServers:[]`.
-3. Apply configured provider defaults, then select the HTTP request's model
-   using the modern or legacy method above.
+2. Without a conversation, send `session/new` to the selected provider with the configured absolute
+   `working_dir` as `cwd` and `mcpServers:[]`. With a conversation, reserve its
+   existing logical/native bindings; do not call `session/new` again.
+3. Select the HTTP request's model using the modern or legacy method above.
+   Configured provider defaults apply when a native session is created.
 4. Send `session/prompt` using the provider's session ID.
 5. Collect `session/update` notifications and the prompt's final `stopReason`.
-6. Remove the logical session and call upstream `session/close` if advertised.
+6. For one-shot requests, remove the logical session and call upstream
+   `session/close` if advertised. For attached requests, release the turn
+   reservation and retain the same native bindings.
 
-Provider processes are reused across HTTP requests. Provider sessions are
-fresh for each request. Providers that do not implement `session/close` can
-retain backend session state until their process exits.
+Provider processes are reused across HTTP requests. Conversation creation uses
+`Router.Create` with all live providers, just like ACP `session/new`, and stores
+only a handle-to-logical-session mapping, timestamp, supplied metadata and busy
+flag. No input, output or media archive is retained by acpboss. Metadata is
+limited to 16 entries, 64-character keys and 512-character string values; update
+replaces it and does not prompt the provider.
+
+Selection, validation and prompting are reserved as one exclusive turn. A
+competing turn returns 409 before upstream selection. Different handles can
+run concurrently. A → B → A uses the original native session for each provider
+and its separate history. No transcript is copied between providers. Handles
+last until DELETE or process shutdown; restart makes old IDs unknown (404).
+Providers that do not implement `session/close` can retain their own state until
+their process exits.
 
 | HTTP request field | ACP mapping or validation |
 | --- | --- |
@@ -101,8 +119,9 @@ retain backend session state until their process exits.
 | `input` as a mixed-media message array | Preserve ordered text/media blocks with textual role/message boundaries. See the multimodal section below. |
 | `instructions` | Include in the serialized transcript. There is no separate upstream system-message RPC. Must be a string when supplied. |
 | `stream` | Choose JSON or SSE on the frontend. The backend still uses ACP prompt/update messages. |
-| `store` | Must be explicitly `false`. No upstream storage setting is changed. |
-| `previous_response_id`, `conversation` | Must be absent or `null`; no session lookup or continuation is performed. |
+| `store` | Omitted or `false`; `true` is rejected. Response reports `false`. No upstream storage setting is changed. |
+| `conversation` | Existing handle string or `{"id":"conv_…"}` selects its native session; absent/null uses a one-shot session. |
+| `previous_response_id` | Absent/null only; response snapshots/branches are unsupported. |
 | `background` | Must be absent or `false`. |
 | `text` | If supplied, only `{"format":{"type":"text"}}` is supported. |
 | Other fields | HTTP 400, including `tools`, `tool_choice`, `temperature`, `max_output_tokens`, and `reasoning`. No translation is attempted. |
@@ -140,9 +159,11 @@ Continue the following conversation as the assistant. Preserve the supplied role
 
 A string input with `instructions` uses the same transcript format with one
 `user` message. This is textual conversation replay: roles are encoded in the
-text, rather than reconstructed as native structured provider history. To
-continue a conversation over HTTP, include earlier input and assistant output
-in the next request's `input` array.
+text, rather than reconstructed as native structured provider history. With a
+`conversation` selector, only this request's normalized input is forwarded to
+the existing native session. Send new input only; any earlier messages supplied
+again would be delivered again. The `instructions` field adds current textual
+context; it does not reset instructions already held in provider history.
 
 ## ACP output to HTTP response
 
@@ -162,7 +183,8 @@ not provider session IDs. The final output contains one assistant `message`
 with one `output_text` content part, with empty `annotations` and `logprobs`.
 `completed_at` is set only for `completed` responses. HTTP metadata reports
 `store:false`, `previous_response_id:null`, `tools:[]`, `tool_choice:none`,
-and `parallel_tool_calls:false`.
+and `parallel_tool_calls:false`. Attached responses also carry
+`conversation:{"id":"conv_…"}`, including SSE snapshots from the first event.
 
 Provider-native tools can still execute within the provider's own permissions.
 The HTTP `tools:[]` output does not disable them. If a provider requests client
@@ -197,7 +219,8 @@ Errors before generation use an HTTP error object with `error.message`,
 | Condition | HTTP status |
 | --- | --- |
 | Invalid JSON, unsupported field, content, or state | 400 |
-| Unknown/unavailable model or unsupported path | 404 |
+| Unknown/deleted conversation, unknown/unavailable model or unsupported path | 404 |
+| Overlapping turn or native RPC still draining on the conversation | 409 |
 | Non-POST method on `/v1/responses` | 405 with `Allow: POST` |
 | Request body exceeds the configured limit | 413 |
 | Request/session capacity exhausted | 429 |
@@ -377,15 +400,15 @@ HTTP filtering. No synthetic image-generation or audio tool objects are created.
 
 ## Generated HTTP contract
 
-Edit [openapi.yaml](openapi.yaml), then run `make generate` from the repository
+Edit [openapi.yaml](openapi.yaml), then run `task generate` from the repository
 root. The pinned generator config is `tools/oapi-codegen.yaml`; tooling is
 isolated in `tools/go.mod`. Generated models, strict server interfaces, routing
 and the embedded spec live in `internal/openai/api/api.gen.go`. Request validation
 uses JSON Schema 2020-12 compiled from that embedded spec. HTTP handlers and SSE
 writers consume the generated types.
 
-`make generate-check` generates into a temporary directory and byte-compares
-without overwriting artifacts. It is part of `make check`, including CI. Commit
+`task generate-check` generates into a temporary directory and byte-compares
+without overwriting artifacts. It is part of `task check`, including CI. Commit
 specification and generated artifacts together when preparing an authorized
 commit; never edit generated files directly.
 

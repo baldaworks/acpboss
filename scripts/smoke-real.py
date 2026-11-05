@@ -9,6 +9,7 @@ import base64
 import json
 import pathlib
 import queue
+import secrets
 import shlex
 import struct
 import subprocess
@@ -135,8 +136,9 @@ def main():
     capabilities = {}
     results = []
 
-    def record(transport, provider, kind, text="", status="failed", error=None):
-        expected = "LEFT=RED RIGHT=BLUE" if kind == "image" else "ACPBOSS_OK"
+    def record(transport, provider, kind, text="", status="failed", error=None, expected=None):
+        if expected is None:
+            expected = "LEFT=RED RIGHT=BLUE" if kind == "image" else "ACPBOSS_OK"
         passed = status == "completed" and text.strip() == expected
         result = {"transport": transport, "provider": provider, "model": models.get(provider),
                   "kind": kind, "status": status, "text": text, "passed": passed}
@@ -238,6 +240,54 @@ def main():
                     record("acpboss-http", provider, kind, text, answer.get("status"), answer.get("error"))
                 except (urllib.error.URLError, TimeoutError) as error:
                     record("acpboss-http", provider, kind, error=str(error))
+            # A fresh token appears only in turn one. Turn two cannot recover it
+            # unless the provider is still using its original native session.
+            handle = None
+            nonce = "ACPBOSS_" + secrets.token_hex(16)
+
+            def request_json(method, path, value=None):
+                payload = None if value is None else json.dumps(value).encode()
+                req = urllib.request.Request(base + path, data=payload, method=method,
+                                             headers={"Content-Type": "application/json"})
+                with urllib.request.urlopen(req, timeout=135) as response:
+                    return json.load(response)
+
+            def answer_text(answer):
+                return "".join(part.get("text", "") for item in answer.get("output", [])
+                               for part in item.get("content", []) if part.get("type") == "output_text")
+
+            text, status, error = "", "failed", None
+            try:
+                handle = request_json("POST", "/v1/conversations", {})["id"]
+                first = request_json("POST", "/v1/responses", {
+                    "model": provider + "/" + models[provider], "conversation": handle,
+                    "input": "Remember the exact token " + nonce + ". Reply exactly OK. Do not use tools or files."})
+                if first.get("status") != "completed" or answer_text(first).strip() != "OK":
+                    raise RuntimeError("first conversation turn did not acknowledge token")
+                second = request_json("POST", "/v1/responses", {
+                    "model": provider + "/" + models[provider], "conversation": {"id": handle},
+                    "input": "What exact token did I ask you to remember? Reply only the token. Do not use tools or files."})
+                text, status = answer_text(second), second.get("status")
+                if second.get("conversation", {}).get("id") != handle or second.get("store") is not False:
+                    raise RuntimeError("incorrect conversation reference or store flag")
+            except (urllib.error.URLError, TimeoutError, RuntimeError, KeyError) as failure:
+                status, error = "failed", str(failure)
+            finally:
+                if handle:
+                    try:
+                        deleted = request_json("DELETE", "/v1/conversations/" + handle)
+                        if deleted.get("deleted") is not True:
+                            raise RuntimeError("conversation deletion failed")
+                        try:
+                            request_json("GET", "/v1/conversations/" + handle)
+                        except urllib.error.HTTPError as missing:
+                            if missing.code != 404:
+                                raise
+                        else:
+                            raise RuntimeError("deleted handle still exists")
+                    except (urllib.error.URLError, TimeoutError, RuntimeError) as failure:
+                        status, error = "failed", str(failure)
+            record("acpboss-http", provider, "native-continuity", text, status, error, expected=nonce)
     finally:
         process.terminate()
         try:

@@ -277,3 +277,102 @@ func TestBinaryModes(t *testing.T) {
 		})
 	}
 }
+
+func TestHTTPConversationRestart(t *testing.T) {
+	if testing.Short() {
+		t.Skip("real CLI build and process restart")
+	}
+	binary := filepath.Join(t.TempDir(), "acpboss")
+	build := exec.CommandContext(t.Context(), "go", "build", "-o", binary, "./cmd/acpboss")
+	build.Dir = filepath.Join("..", "..")
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build: %v %s", err, output)
+	}
+	c := testprovider.Config(t, map[string]string{"alpha": ""})
+	body, err := yaml.Marshal(map[string]any{"runtime": c.Runtime, "acpboss": map[string]any{"working_dir": c.Settings.WorkingDir, "http": map[string]any{"listen": "127.0.0.1:0"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, body, 0600); err != nil {
+		t.Fatal(err)
+	}
+	start := func() (string, func()) {
+		cmd := exec.Command(binary, "api", "--config", path)
+		stderr, err := cmd.StderrPipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		ready := make(chan string, 1)
+		go func() {
+			scanner := bufio.NewScanner(stderr)
+			for scanner.Scan() {
+				if address, ok := strings.CutPrefix(scanner.Text(), "acpboss listening on "); ok {
+					ready <- "http://" + address + "/v1/"
+				}
+			}
+		}()
+		stopped := false
+		stop := func() {
+			if stopped {
+				return
+			}
+			stopped = true
+			_ = cmd.Process.Signal(syscall.SIGTERM)
+			done := make(chan error, 1)
+			go func() { done <- cmd.Wait() }()
+			select {
+			case err := <-done:
+				if err != nil {
+					t.Error(err)
+				}
+			case <-time.After(4 * time.Second):
+				_ = cmd.Process.Kill()
+				var exit *exec.ExitError
+				if err := <-done; err != nil && !errors.As(err, &exit) {
+					t.Error(err)
+				}
+				t.Error("restart shutdown hung")
+			}
+		}
+		t.Cleanup(stop)
+		select {
+		case address := <-ready:
+			return address, stop
+		case <-time.After(5 * time.Second):
+			t.Fatal("restart readiness timed out")
+			return "", stop
+		}
+	}
+	first, stop := start()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, first+"conversations", strings.NewReader(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var conversation struct {
+		ID string `json:"id"`
+	}
+	err = json.NewDecoder(response.Body).Decode(&conversation)
+	_ = response.Body.Close()
+	if err != nil || response.StatusCode != 200 || conversation.ID == "" {
+		t.Fatal(response.StatusCode, conversation, err)
+	}
+	stop()
+	second, _ := start()
+	response, err = http.Get(second + "conversations/" + conversation.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = response.Body.Close()
+	if response.StatusCode != 404 {
+		t.Fatal("restarted process recovered runtime handle", response.StatusCode)
+	}
+}

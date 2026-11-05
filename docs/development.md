@@ -2,31 +2,33 @@
 
 Use Go **1.26.10+**, the version in both `go.mod` files. Runtime code lives in
 the root module; generation/lint/audit tools are pinned in the isolated `tools`
-module. Python 3 and real provider accounts are needed only for opt-in smoke
-checks. Normal tests use local deterministic ACP subprocesses and a dummy key.
+module. Install [Task](https://taskfile.dev/docs/installation) v3.44.0 to run
+the commands in `Taskfile.yml` (CI uses the same version). Python 3 and real
+provider accounts are needed only for opt-in smoke checks. Normal tests use
+local deterministic ACP subprocesses and a dummy key.
 
 ## Build and check
 
 ```sh
-make build          # bin/acpboss
-make test           # all package and binary integration tests
-make race           # race detector
-make vet
-make lint           # pinned golangci-lint via go tool
-make audit          # pinned govulncheck via go tool
-make mod-verify     # verify downloaded modules in both modules
-make check          # generation drift, format, tests, race, vet, lint, audit, build
+task build          # bin/acpboss
+task test           # all package and binary integration tests
+task race           # race detector
+task vet
+task lint           # pinned golangci-lint via go tool
+task audit          # pinned govulncheck via go tool
+task mod-verify     # verify downloaded modules in both modules
+task check          # generation drift, format, tests, race, vet, lint, audit, build
 ```
 
-`make check` is the local verification entrypoint. CI separates tests/build/audit
-and lint into two workflows, using `go-version-file: go.mod` and the same Make
+`task check` is the local verification entrypoint. CI separates tests/build/audit
+and lint into two workflows, using `go-version-file: go.mod` and the same Task
 commands. Real-account calls are not part of CI.
 
 After changing dependencies:
 
 ```sh
-make tidy
-make mod-verify
+task tidy
+task mod-verify
 ```
 
 Use the locally available Go version when deliberately updating module Go
@@ -45,8 +47,8 @@ responses, errors and SSE payloads. It describes an explicit Responses subset,
 not the entire upstream OpenAI API.
 
 ```sh
-make generate
-make generate-check
+task generate
+task generate-check
 ```
 
 `go generate ./internal/openai/api` is the equivalent generation entrypoint.
@@ -60,9 +62,9 @@ framing. It uses generated wire types. Request validation compiles JSON Schema
 2020-12 from the embedded contract, including `const`, nullable unions and strict
 nested fields. Do not introduce duplicate handwritten HTTP schema structs.
 
-`make generate-check` generates into a temporary directory and compares bytes;
+`task generate-check` generates into a temporary directory and compares bytes;
 it fails on drift without changing repository files. When updating a tool,
-review generated output and run SDK/contract tests as well as `make check`.
+review generated output and run SDK/contract tests as well as `task check`.
 
 ## Repository map
 
@@ -84,7 +86,7 @@ and make sure their commands can run.
 This command sends real account requests and prints a temporary artifacts path:
 
 ```sh
-make build
+task build
 python3 scripts/smoke-real.py \
   --binary bin/acpboss --acpdump /path/to/acpdump \
   --provider 'codex=npx -y codex-acp@1.11.0' \
@@ -98,7 +100,10 @@ support in every selected model.
 
 It runs acpdump on direct and aggregate ACP endpoints, then verifies text and a
 known image through direct ACP, acpboss ACP and HTTP. It checks actual answers,
-records JSON results and stops owned processes. Unsupported advertised modality
+records JSON results and stops owned processes. For each provider it also creates
+a live HTTP conversation, sends a fresh random token, then asks for it in a
+second request containing no token or replayed messages. Exact recall, completed
+status, conversation reference, store:false and deletion/404 are checked. Unsupported advertised modality
 absence is recorded separately; an attempted generation failure fails the run.
 No tools or repository access are needed for the requested model answers.
 Review raw provider diagnostic artifacts locally before sharing them.

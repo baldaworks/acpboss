@@ -1,4 +1,4 @@
-// Package openai implements the explicitly stateless Responses subset.
+// Package openai implements Responses over native ACP sessions.
 package openai
 
 import (
@@ -23,6 +23,7 @@ type textMessage struct {
 }
 type normalized struct {
 	Model, Prompt string
+	Conversation  string
 	Stream        bool
 	Instructions  *string
 	Blocks        []any
@@ -36,6 +37,17 @@ type contentMessage struct {
 
 func normalize(req api.CreateResponse) (normalized, error) {
 	n := normalized{Model: req.Model, Instructions: req.Instructions, Stream: req.Stream != nil && *req.Stream}
+	if req.Conversation != nil {
+		id, err := req.Conversation.AsConversationSelector0()
+		if err != nil {
+			ref, refErr := req.Conversation.AsConversationReference()
+			if refErr != nil {
+				return n, invalid("conversation", "expected conversation ID or reference")
+			}
+			id = ref.Id
+		}
+		n.Conversation = id
+	}
 	direct, err := req.Input.AsCreateResponseInput0()
 	var messages []textMessage
 	var structured []contentMessage

@@ -9,7 +9,7 @@ go build -trimpath -o bin/acpboss ./cmd/acpboss
 ./bin/acpboss --help
 ```
 
-`make build` produces the same binary. acpboss is an executable; its `internal`
+`task build` produces the same binary. acpboss is an executable; its `internal`
 packages are implementation details rather than a public Go library API.
 
 ## 2. Prepare a provider
@@ -85,12 +85,15 @@ curl -sS http://127.0.0.1:8080/v1/responses \
 ```
 
 Expect `status:"completed"` and the assistant text in
-`output[0].content[0].text`. `store:false` is mandatory. For SSE, add
+`output[0].content[0].text`. `store` may be omitted or `false`. For SSE, add
 `"stream":true` and use `curl -N`.
 
 Model IDs split at the first slash: `opencode/openai/gpt-6.1-sol` routes to the
 OpenCode process with upstream ID `openai/gpt-6.1-sol`. Free models use exactly
 the same routing. Their availability changes; always discover actual IDs.
+
+To keep native context across requests, [create a conversation](usage.md#continue-a-conversation)
+and send its ID with each new input.
 
 Stop the server with Ctrl-C. acpboss shuts down its owned provider processes.
 Next: [usage](usage.md), [configuration](configuration.md),

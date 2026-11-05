@@ -20,7 +20,11 @@ import (
 func TestACPFixtureProcess(t *testing.T) { testprovider.MaybeRun() }
 func httpFixture(t *testing.T) (*httptest.Server, *Handler) {
 	t.Helper()
-	c := testprovider.Config(t, map[string]string{"alpha": "", "beta": "legacy"})
+	return httpFixtureModes(t, map[string]string{"alpha": "", "beta": "legacy"})
+}
+func httpFixtureModes(t *testing.T, modes map[string]string) (*httptest.Server, *Handler) {
+	t.Helper()
+	c := testprovider.Config(t, modes)
 	r := proxy.New(c)
 	if err := r.Start(t.Context()); err != nil {
 		t.Fatal(err)
@@ -118,14 +122,11 @@ func TestInputReplayAndInstructions(t *testing.T) {
 
 func TestUnsupportedBeforeAcceptance(t *testing.T) {
 	server, _ := httpFixture(t)
-	for name, extra := range map[string]map[string]any{"missing store": {"store": nil}, "stored": {"store": true}, "continuation": {"previous_response_id": "resp_missing"}, "conversation": {"conversation": "c"}, "background": {"background": true}, "tools": {"tools": []any{map[string]any{"type": "function"}}}, "generation": {"temperature": 0.5}, "item reference": {"input": []any{map[string]any{"type": "item_reference", "id": "msg_old"}}}, "image": {"input": []any{map[string]any{"role": "user", "content": []any{map[string]any{"type": "input_image", "image_url": "x"}}}}}} {
+	for name, extra := range map[string]map[string]any{"stored": {"store": true}, "continuation": {"previous_response_id": "resp_missing"}, "background": {"background": true}, "tools": {"tools": []any{map[string]any{"type": "function"}}}, "generation": {"temperature": 0.5}, "item reference": {"input": []any{map[string]any{"type": "item_reference", "id": "msg_old"}}}, "image": {"input": []any{map[string]any{"role": "user", "content": []any{map[string]any{"type": "input_image", "image_url": "x"}}}}}} {
 		t.Run(name, func(t *testing.T) {
 			request := map[string]any{"model": "beta/org/model", "store": false, "input": "hello"}
 			for k, v := range extra {
 				request[k] = v
-			}
-			if name == "missing store" {
-				delete(request, "store")
 			}
 			status, v := post(t, server.URL, request)
 			if status != 400 || v["error"] == nil || v["output"] != nil {

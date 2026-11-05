@@ -2,6 +2,8 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -24,7 +26,11 @@ func TestGeneratedContract(t *testing.T) {
 		{"text", `{"model":"a/model","input":"hello","store":false}`, true},
 		{"image", `{"model":"a/model","input":[{"role":"user","content":[{"type":"input_image","image_url":"data:image/png;base64,YQ=="}]}],"store":false}`, true},
 		{"file", `{"model":"a/model","input":[{"role":"user","content":[{"type":"input_file","filename":"a.pdf","file_data":"data:application/pdf;base64,YQ=="}]}],"store":false}`, true},
-		{"missing store", `{"model":"a/model","input":"hello"}`, false},
+		{"missing store", `{"model":"a/model","input":"hello"}`, true},
+		{"conversation string", `{"model":"a/model","input":"hello","conversation":"conv_a"}`, true},
+		{"conversation reference", `{"model":"a/model","input":"hello","conversation":{"id":"conv_a"}}`, true},
+		{"empty conversation", `{"model":"a/model","input":"hello","conversation":""}`, false},
+		{"invalid reference", `{"model":"a/model","input":"hello","conversation":{"id":"conv_a","items":[]}}`, false},
 		{"store true", `{"model":"a/model","input":"hello","store":true}`, false},
 		{"nested extra", `{"model":"a/model","input":[{"role":"user","content":[{"type":"input_text","text":"hi","extra":true}]}],"store":false}`, false},
 		{"remote image", `{"model":"a/model","input":[{"role":"user","content":[{"type":"input_image","image_url":"https://example.com/a.png"}]}],"store":false}`, false},
@@ -42,4 +48,57 @@ func TestGeneratedContract(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConversationRequestSchemas(t *testing.T) {
+	for _, tc := range []struct {
+		name, body string
+		valid      bool
+	}{
+		{"CreateConversation", `{}`, true},
+		{"CreateConversation", `{"metadata":{"topic":"demo"}}`, true},
+		{"CreateConversation", `{"metadata":null}`, true},
+		{"CreateConversation", `{"items":[]}`, false},
+		{"CreateConversation", `{"metadata":{"topic":1}}`, false},
+		{"UpdateConversation", `{}`, false},
+		{"UpdateConversation", `{"metadata":null}`, true},
+		{"UpdateConversation", `{"metadata":{"topic":"next"}}`, true},
+	} {
+		schema, err := Schema(tc.name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var value any
+		if err := json.Unmarshal([]byte(tc.body), &value); err != nil {
+			t.Fatal(err)
+		}
+		if err := schema.Validate(value); (err == nil) != tc.valid {
+			t.Fatalf("%s %s: %v", tc.name, tc.body, err)
+		}
+	}
+	schema, err := Schema("CreateConversation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, metadata := range []map[string]string{
+		{strings.Repeat("k", 65): "v"},
+		{"k": strings.Repeat("v", 513)},
+	} {
+		if err := schema.Validate(map[string]any{"metadata": metadataValue(metadata)}); err == nil {
+			t.Fatal("oversized metadata accepted")
+		}
+	}
+	metadata := map[string]string{}
+	for i := range 17 {
+		metadata[fmt.Sprint(i)] = "v"
+	}
+	if err := schema.Validate(map[string]any{"metadata": metadataValue(metadata)}); err == nil {
+		t.Fatal("too many metadata keys accepted")
+	}
+}
+func metadataValue(value map[string]string) any {
+	raw, _ := json.Marshal(value)
+	var result any
+	_ = json.Unmarshal(raw, &result)
+	return result
 }

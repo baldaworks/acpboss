@@ -1,0 +1,76 @@
+version: '3'
+
+tasks:
+  default:
+    cmds:
+      - task: build
+
+  build:
+    desc: Build bin/acpboss
+    cmds:
+      - go build -trimpath -o bin/acpboss ./cmd/acpboss
+
+  test:
+    desc: Run tests
+    cmds:
+      - go test ./...
+
+  race:
+    desc: Run tests with the race detector
+    cmds:
+      - go test -race ./...
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - go vet ./...
+
+  fmt-check:
+    desc: Check Go formatting
+    cmds:
+      - 'test -z "$(gofmt -l cmd internal)"'
+
+  lint:
+    desc: Run the pinned linter
+    cmds:
+      - ./scripts/lint.sh
+
+  audit:
+    desc: Check reachable vulnerabilities
+    cmds:
+      - ./scripts/audit.sh
+
+  generate:
+    desc: Generate the HTTP contract
+    cmds:
+      - go generate ./internal/openai/api
+
+  generate-check:
+    desc: Check generated HTTP contract drift
+    cmds:
+      - ./scripts/generate-check.sh
+
+  tidy:
+    desc: Tidy runtime and tool modules
+    cmds:
+      - go mod tidy
+      - go -C tools mod tidy
+
+  mod-verify:
+    desc: Verify runtime and tool modules
+    cmds:
+      - go mod verify
+      - go -C tools mod verify
+
+  check:
+    desc: Run all project checks and build
+    cmds:
+      - task: mod-verify
+      - task: generate-check
+      - task: fmt-check
+      - task: test
+      - task: race
+      - task: vet
+      - task: lint
+      - task: audit
+      - task: build

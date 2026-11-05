@@ -2,8 +2,8 @@
 
 ## Project and boundaries
 
-acpboss is a Go CLI with two frontends: ACP v1 stdio and an explicit stateless
-OpenAI Responses HTTP subset. Both route to owned ACP subprocesses. Provider
+acpboss is a Go CLI with two frontends: ACP v1 stdio and an explicit
+OpenAI Responses HTTP subset with process-local conversation handles. Both route to owned ACP subprocesses. Provider
 IDs are namespaces, not vendor-specific dispatch types. Preserve first-slash
 model routing, separate backend histories, cancellation and process cleanup.
 
@@ -14,26 +14,31 @@ network clients for behavior the provider executable already owns.
 
 ## HTTP contract and generated code
 
-Edit docs/openapi.yaml for HTTP schemas; run make generate. Never hand-edit
+Edit docs/openapi.yaml for HTTP schemas; run task generate. Never hand-edit
 internal/openai/api/api.gen.go. Use generated request/response/SSE types rather
 than parallel handwritten wire structs. Keep tools/oapi-codegen.yaml and the
-isolated tools module reproducible. make generate-check detects stale artifacts
+isolated tools module reproducible. task generate-check detects stale artifacts
 without modifying files.
 
-Preserve explicit store:false, strict unknown-field rejection, correct terminal
+Keep response store:false (request store may be omitted), strict unknown-field rejection, correct terminal
 SSE events and the distinction between HTTP status and Response status. ACP
 media capability checks apply to the selected provider; never silently drop
 unsupported assistant media or automatically switch providers.
+
+Retain only live handle/session routing metadata and user-supplied metadata.
+Providers own history; do not archive or replay bodies, create a database,
+recover handles after restart or silently recreate failed native sessions.
+Reserve selection and prompting together for attached HTTP turns.
 
 ## Verification
 
 Use the local Go version, matching go.mod and tools/go.mod. Normal checks:
 
 ```sh
-make check
+task check
 ```
 
-For dependency changes run make tidy and make mod-verify. Pinned generator,
+For dependency changes run task tidy and task mod-verify. Pinned generator,
 linter and audit dependencies live in tools/go.mod; wrappers use go tool.
 Use meaningful tests of behavior and failure paths, preferably through existing
 ACP subprocess fixtures and OpenAI SDK integration coverage. Normal tests must

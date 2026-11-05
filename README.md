@@ -82,12 +82,16 @@ connection examples.
 | | ACP stdio | Responses HTTP |
 | --- | --- | --- |
 | Start command | `acpboss stdio` | `acpboss api` |
-| Conversation state | Separate persistent history per provider within a logical session | Fresh session per request; replay earlier messages yourself |
+| Conversation state | Separate native history per provider within a live logical session | Reuse native sessions with `conversation`; omit it for a one-shot request |
 | Input | Text, image, audio and resources, subject to provider capabilities | Text, inline images and inline files |
 | Output | ACP content and tool updates | Text JSON or Responses SSE |
 | Interactive permissions | Forwarded to the ACP client | Cancelled; response fails |
 
-The HTTP interface implements **`/v1/responses`**, not Chat Completions.
+Create a [live HTTP conversation](docs/usage.md#continue-a-conversation) to send
+only new input on each turn. acpboss keeps its session IDs in memory; providers
+own the history. Handles last until deletion or process shutdown.
+
+The HTTP interface implements **`/v1/responses`** and conversation lifecycle routes.
 `/v1/chat/completions` and `/v1/completions` return 404. Stored responses, remote
 media fetching, uploaded file IDs and HTTP audio are outside this subset.
 The HTTP listener defaults to localhost and has no built-in authentication or
@@ -106,7 +110,7 @@ TLS. See [usage and boundaries](docs/usage.md) before integrating it.
 ## Contributing
 
 Issues and pull requests are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md)
-and run `make check` before submitting a change. Build and development commands
+and run `task check` before submitting a change. Build and development commands
 are listed in the [developer guide](docs/development.md).
 
 ## License and author
