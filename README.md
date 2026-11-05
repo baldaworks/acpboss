@@ -3,7 +3,7 @@
 **One entry point for your ACP agents.**
 
 Run Codex, OpenCode and other Agent Client Protocol providers behind a single
-command. Connect an ACP client or use the OpenAI Responses HTTP interface, then
+command. Connect an ACP client or use the OpenAI-compatible HTTP interface, then
 select a model with a `provider/model` identifier.
 
 [![Tests](https://github.com/baldaworks/acpboss/actions/workflows/test.yml/badge.svg)](https://github.com/baldaworks/acpboss/actions/workflows/test.yml)
@@ -16,7 +16,7 @@ select a model with a `provider/model` identifier.
 ## Why acpboss?
 
 - **Connect your tools once.** Choose ACP stdio for agent clients or Responses
-  HTTP for applications and SDKs.
+  and Chat Completions HTTP for applications and SDKs.
 - **Route by model.** `codex/gpt-6.1-sol` selects Codex;
   `opencode/opencode/MODEL_ID` selects an OpenCode model. Actual IDs come from
   the provider catalog.
@@ -24,13 +24,13 @@ select a model with a `provider/model` identifier.
   access and tools. ACP sessions retain separate histories for each provider.
 - **Send more than text.** ACP forwards images, audio and resources when supported.
   HTTP accepts inline images and files and returns text.
-- **Use a defined API contract.** The Responses subset is described in OpenAPI;
+- **Use a defined API contract.** The OpenAI HTTP subset is described in OpenAPI;
   its Go transport and wire types are generated and checked in CI.
 
 ```mermaid
 flowchart LR
     client[ACP client] -->|stdio| boss[acpboss]
-    app[Application / SDK] -->|Responses HTTP| boss
+    app[Application / SDK] -->|OpenAI HTTP| boss
     boss -->|ACP stdio| codex[Codex adapter]
     boss -->|ACP stdio| opencode[OpenCode]
     boss -->|ACP stdio| other[Other ACP providers]
@@ -73,6 +73,9 @@ curl -sS http://127.0.0.1:8080/v1/models
 curl -sS http://127.0.0.1:8080/v1/responses \
   -H 'Content-Type: application/json' \
   -d '{"model":"opencode/UPSTREAM_MODEL_ID","input":"Hello","store":false}'
+curl -sS http://127.0.0.1:8080/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"opencode/UPSTREAM_MODEL_ID","messages":[{"role":"user","content":"Hello"}]}'
 ```
 
 Read `status` in the response: `completed`, `incomplete` or `failed`. HTTP 200
@@ -104,12 +107,12 @@ attached Response includes `conversation:{"id":"conv_…"}` and always reports
 
 ## Choose your interface
 
-| | ACP stdio | Responses HTTP |
+| | ACP stdio | OpenAI HTTP |
 | --- | --- | --- |
 | Start command | `acpboss stdio` | `acpboss api` |
-| Conversation state | Separate native history per provider within a live logical session | Reuse native sessions with `conversation`; omit it for a one-shot request |
-| Input | Text, image, audio and resources, subject to provider capabilities | Text, inline images and inline files |
-| Output | ACP content and tool updates | Text JSON or Responses SSE |
+| Conversation state | Separate native history per provider within a live logical session | Responses can reuse native sessions with `conversation`; Chat requests are one-shot |
+| Input | Text, image, audio and resources, subject to provider capabilities | Text and inline images; Responses also accepts inline files |
+| Output | ACP content and tool updates | Text JSON or API-specific SSE |
 | Interactive permissions | Forwarded to the ACP client | Cancelled; response fails |
 
 The supported HTTP API is:
@@ -118,6 +121,7 @@ The supported HTTP API is:
 | --- | --- |
 | `GET /v1/models` | Discover currently available qualified model IDs. |
 | `POST /v1/responses` | Generate once or continue a live conversation. |
+| `POST /v1/chat/completions` | Generate from OpenAI-style messages, with optional streaming. |
 | `POST /v1/conversations` | Create a handle with optional string metadata. |
 | `GET /v1/conversations/{id}` | Read handle identity, creation time and metadata. |
 | `POST /v1/conversations/{id}` | Replace metadata; `metadata:null` clears it. |
@@ -128,8 +132,11 @@ the history. Handles last until deletion or process shutdown and are not
 recovered after restart. There are no conversation item/history endpoints or
 stored response branches, and `previous_response_id` must be omitted or null.
 
-`/v1/chat/completions` and `/v1/completions` return 404. Stored responses, remote
-media fetching, uploaded file IDs and HTTP audio are outside this subset.
+Legacy `/v1/completions` returns 404. Chat Completions is a strict, stateless
+subset: clients resend message history, `n` is omitted or `1`, `store` is omitted
+or `false`, and tools, sampling controls and structured output are rejected.
+Stored responses, remote media fetching, uploaded file IDs and HTTP audio are
+outside this subset.
 The HTTP listener defaults to localhost and has no built-in authentication or
 TLS. See [conversation details](docs/usage.md#continue-a-conversation),
 [usage and boundaries](docs/usage.md), and the [OpenAPI contract](docs/openapi.yaml)

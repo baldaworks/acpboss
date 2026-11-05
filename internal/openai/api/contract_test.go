@@ -50,6 +50,42 @@ func TestGeneratedContract(t *testing.T) {
 	}
 }
 
+func TestChatCompletionRequestSchema(t *testing.T) {
+	schema, err := Schema("CreateChatCompletion")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, body string
+		valid      bool
+	}{
+		{"text", `{"model":"a/model","messages":[{"role":"user","content":"hello"}]}`, true},
+		{"stream", `{"model":"a/model","messages":[{"role":"system","content":"brief"},{"role":"developer","content":"exact"},{"role":"user","content":"hello"}],"stream":true}`, true},
+		{"inert values", `{"model":"a/model","messages":[{"role":"user","content":"hello"}],"n":1,"store":false,"modalities":["text"]}`, true},
+		{"content parts", `{"model":"a/model","messages":[{"role":"user","content":[{"type":"text","text":"describe"},{"type":"image_url","image_url":{"url":"data:image/png;base64,YQ==","detail":"auto"}}]}]}`, true},
+		{"missing model", `{"messages":[{"role":"user","content":"hello"}]}`, false},
+		{"empty messages", `{"model":"a/model","messages":[]}`, false},
+		{"empty content", `{"model":"a/model","messages":[{"role":"user","content":""}]}`, false},
+		{"multiple choices", `{"model":"a/model","messages":[{"role":"user","content":"hello"}],"n":2}`, false},
+		{"storage", `{"model":"a/model","messages":[{"role":"user","content":"hello"}],"store":true}`, false},
+		{"sampling", `{"model":"a/model","messages":[{"role":"user","content":"hello"}],"temperature":0}`, false},
+		{"tools", `{"model":"a/model","messages":[{"role":"user","content":"hello"}],"tools":[]}`, false},
+		{"audio modality", `{"model":"a/model","messages":[{"role":"user","content":"hello"}],"modalities":["audio"]}`, false},
+		{"remote image", `{"model":"a/model","messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"https://example.com/a.png"}}]}]}`, false},
+		{"image on assistant", `{"model":"a/model","messages":[{"role":"assistant","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,YQ=="}}]}]}`, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var value any
+			if err := json.Unmarshal([]byte(tc.body), &value); err != nil {
+				t.Fatal(err)
+			}
+			if err := schema.Validate(value); (err == nil) != tc.valid {
+				t.Fatalf("valid=%v: %v", tc.valid, err)
+			}
+		})
+	}
+}
+
 func TestConversationRequestSchemas(t *testing.T) {
 	for _, tc := range []struct {
 		name, body string

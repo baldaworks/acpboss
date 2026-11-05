@@ -32,7 +32,7 @@ var requestSchemas = sync.OnceValues(func() (map[string]*jsonschema.Schema, erro
 		return nil, err
 	}
 	result := map[string]*jsonschema.Schema{}
-	for _, name := range []string{"CreateResponse", "CreateConversation", "UpdateConversation"} {
+	for _, name := range []string{"CreateResponse", "CreateChatCompletion", "CreateConversation", "UpdateConversation"} {
 		schema, err := compiler.Compile(location + "#/components/schemas/" + name)
 		if err != nil {
 			return nil, err

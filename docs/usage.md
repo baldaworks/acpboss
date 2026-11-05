@@ -1,4 +1,4 @@
-# Use ACP and Responses HTTP
+# Use ACP and OpenAI HTTP
 
 ## ACP stdio
 
@@ -38,6 +38,7 @@ Start `acpboss api --config config.yaml`. Supported routes are:
 | --- | --- |
 | `GET /v1/models` | Discover qualified model IDs. |
 | `POST /v1/responses` | Generate from current input, optionally using a live conversation. |
+| `POST /v1/chat/completions` | Generate from OpenAI-style messages in a one-shot session. |
 | `POST /v1/conversations` | Create a native session and return its handle; optional metadata only. |
 | `GET /v1/conversations/{id}` | Read handle identity, creation time and metadata. |
 | `POST /v1/conversations/{id}` | Replace metadata; `metadata:null` clears it. |
@@ -60,8 +61,28 @@ curl -sS http://127.0.0.1:8080/v1/responses \
 `store` may be omitted or `false`; `true` is rejected. Optional `instructions` is a string. The body
 and nested content reject unknown fields; use the [OpenAPI schema](openapi.yaml)
 for the accepted subset. `temperature`, `reasoning`, `max_output_tokens`, external
-`tools`, stored continuation, background generation and Chat Completions are
-not translated. Unsupported paths return 404; invalid fields return 400.
+`tools`, stored continuation and background generation are not translated.
+Unsupported paths return 404; invalid fields return 400.
+
+## Chat Completions
+
+```sh
+curl -sS http://127.0.0.1:8080/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"PROVIDER/UPSTREAM_MODEL_ID","messages":[{"role":"system","content":"Be brief."},{"role":"user","content":"Hello"}]}'
+```
+
+The strict subset accepts `system`, `developer`, `user` and `assistant` roles;
+text content; inline image data URLs in user messages; `stream`; `n:1`;
+`store:false`; and `modalities:["text"]`. Omitted optional fields use those same
+semantics. Tools/functions, sampling controls, log probabilities, stop controls,
+structured output, audio and service tiers are rejected rather than ignored.
+
+Each request creates and releases an isolated ACP session. To continue, resend
+the prior messages. Process-local conversation handles are Responses-only.
+Successful JSON contains one assistant choice and `finish_reason:"stop"` or
+`"length"`. Usage is omitted because ACP does not provide compatible token
+counts. Legacy `POST /v1/completions` remains unsupported and returns 404.
 
 ## Status and errors
 
@@ -84,15 +105,21 @@ curl -N http://127.0.0.1:8080/v1/responses \
   -d '{"model":"PROVIDER/UPSTREAM_MODEL_ID","input":"Hello","store":false,"stream":true}'
 ```
 
-SSE uses Responses lifecycle events, including `response.output_text.delta`
+Responses streaming uses lifecycle events, including `response.output_text.delta`
 and one terminal `response.completed`, `response.incomplete` or `response.failed`.
-Sequence numbers increase from zero. There is no `[DONE]` sentinel or Chat
-Completions chunk format. A disconnected client cannot receive a terminal event;
-its owning backend prompt is cancelled.
+Sequence numbers increase from zero and there is no `[DONE]` sentinel.
+
+Chat Completions streaming uses data-only `chat.completion.chunk` frames with a
+stable ID, model and creation time. The first choice delta carries the assistant
+role, text follows in ordered deltas, and a final choice carries `finish_reason`.
+Successful streams end with exactly `data: [DONE]`. A post-header failure emits
+an OpenAI error object as a data frame and does not emit a successful terminal
+chunk or `[DONE]`. A disconnected client cannot receive a terminal event; its
+owning backend prompt is cancelled.
 
 ## Use an OpenAI client
 
-Point a Responses-compatible client at `http://127.0.0.1:8080/v1`, use a qualified
+Point an OpenAI client at `http://127.0.0.1:8080/v1`, use a qualified
 model from the catalog, and send `store:false`. SDKs that require an API-key
 argument can use a placeholder: the default acpboss listener has no API-key
 authentication, and that key is not used to authenticate providers. Provider
@@ -116,6 +143,10 @@ result, err := client.New(ctx, responses.ResponseNewParams{
 Imports are `github.com/openai/openai-go/v3/responses`, `/option`,
 `/packages/param`, and `/shared`. Handle `err`, then inspect `result.Status`
 and `result.OutputText()`. Use `NewStreaming` for typed SSE consumption.
+
+For Chat Completions, create the root `openai` client with the same options and
+call `client.Chat.Completions.New` or `NewStreaming`. The supported request and
+response shapes are exercised against OpenAI Go SDK v3.32.0 in the test suite.
 
 ## Continue a conversation
 

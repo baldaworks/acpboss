@@ -43,8 +43,8 @@ go tool -modfile=tools/go.mod govulncheck ./...
 ## Change the HTTP API
 
 [openapi.yaml](openapi.yaml) is the source of truth for HTTP routes, requests,
-responses, errors and SSE payloads. It describes an explicit Responses subset,
-not the entire upstream OpenAI API.
+responses, errors and SSE payloads. It describes explicit Responses and Chat
+Completions subsets, not the entire upstream OpenAI API.
 
 ```sh
 task generate
@@ -65,6 +65,8 @@ nested fields. Do not introduce duplicate handwritten HTTP schema structs.
 `task generate-check` generates into a temporary directory and compares bytes;
 it fails on drift without changing repository files. When updating a tool,
 review generated output and run SDK/contract tests as well as `task check`.
+Chat Completions tests cover raw JSON/SSE and the official OpenAI Go SDK for
+both non-streaming and streaming calls.
 
 ## Repository map
 

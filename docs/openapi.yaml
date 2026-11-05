@@ -1,11 +1,12 @@
 openapi: 3.1.0
 info:
-  title: acpboss Responses subset
-  version: 0.2.0
-  description: ACP facade with process-local conversation handles. Responses may continue
-    a native ACP session by conversation ID or run one-shot. No message/response archive,
-    disk storage, restart recovery or previous_response_id branching. Store is omitted
-    or false; true is unsupported. HTTP output remains text.
+  title: acpboss OpenAI HTTP subset
+  version: 0.3.0
+  description: ACP facade with strict Responses and Chat Completions subsets.
+    Responses may continue a native ACP session by conversation ID or run one-shot;
+    Chat Completions is stateless and always one-shot. No message/response archive,
+    disk storage, restart recovery or previous_response_id branching. HTTP output
+    remains text. Legacy Completions is unsupported.
 paths:
   /v1/models:
     get:
@@ -101,6 +102,82 @@ paths:
                 $ref: '#/components/schemas/Error'
         '409':
           description: Conversation or native session busy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/chat/completions:
+    post:
+      operationId: createChatCompletion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChatCompletion'
+      responses:
+        '200':
+          description: OpenAI-compatible Chat Completion or streamed Chat Completion chunks.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatCompletion'
+            text/event-stream:
+              schema:
+                type: string
+                description: Data-only ChatCompletionChunk frames ending with data [DONE].
+                x-event-schema:
+                  $ref: '#/components/schemas/ChatCompletionChunk'
+        '400':
+          description: Invalid or unsupported field, content, or value.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Unknown or unavailable model.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413':
+          description: Body exceeds the configured limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Proxy capacity exhausted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Streaming unavailable or internal transport failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: Upstream setup, protocol, or prompt failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Provider authentication required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '504':
+          description: Provider setup or prompt timeout.
           content:
             application/json:
               schema:
@@ -418,6 +495,229 @@ paths:
           minLength: 1
 components:
   schemas:
+    CreateChatCompletion:
+      type: object
+      additionalProperties: false
+      required:
+      - model
+      - messages
+      properties:
+        model:
+          type: string
+          minLength: 1
+        messages:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+        stream:
+          type: boolean
+          default: false
+        n:
+          type: integer
+          const: 1
+          default: 1
+        store:
+          type: boolean
+          const: false
+          default: false
+        modalities:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            type: string
+            const: text
+    ChatMessage:
+      type: object
+      additionalProperties: false
+      required:
+      - role
+      - content
+      properties:
+        role:
+          type: string
+          enum:
+          - system
+          - developer
+          - user
+          - assistant
+        content:
+          oneOf:
+          - type: string
+            minLength: 1
+          - type: array
+            minItems: 1
+            items:
+              $ref: '#/components/schemas/ChatContentPart'
+    ChatContentPart:
+      oneOf:
+      - $ref: '#/components/schemas/ChatTextPart'
+      - $ref: '#/components/schemas/ChatImagePart'
+      discriminator:
+        propertyName: type
+        mapping:
+          text: '#/components/schemas/ChatTextPart'
+          image_url: '#/components/schemas/ChatImagePart'
+    ChatTextPart:
+      type: object
+      additionalProperties: false
+      required:
+      - type
+      - text
+      properties:
+        type:
+          type: string
+          const: text
+        text:
+          type: string
+          minLength: 1
+    ChatImagePart:
+      type: object
+      additionalProperties: false
+      required:
+      - type
+      - image_url
+      properties:
+        type:
+          type: string
+          const: image_url
+        image_url:
+          $ref: '#/components/schemas/ChatImageURL'
+    ChatImageURL:
+      type: object
+      additionalProperties: false
+      required:
+      - url
+      properties:
+        url:
+          type: string
+          minLength: 1
+          pattern: ^data:image/[A-Za-z0-9.+-]+;base64,[A-Za-z0-9+/]+={0,2}$
+        detail:
+          type: string
+          const: auto
+    ChatCompletion:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - object
+      - created
+      - model
+      - choices
+      properties:
+        id:
+          type: string
+          pattern: ^chatcmpl-
+        object:
+          type: string
+          const: chat.completion
+        created:
+          type: integer
+          format: int64
+        model:
+          type: string
+        choices:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/ChatCompletionChoice'
+    ChatCompletionChoice:
+      type: object
+      additionalProperties: false
+      required:
+      - index
+      - message
+      - logprobs
+      - finish_reason
+      properties:
+        index:
+          type: integer
+          const: 0
+        message:
+          $ref: '#/components/schemas/ChatCompletionMessage'
+        logprobs:
+          type: 'null'
+        finish_reason:
+          type: string
+          enum:
+          - stop
+          - length
+    ChatCompletionMessage:
+      type: object
+      additionalProperties: false
+      required:
+      - role
+      - content
+      - refusal
+      properties:
+        role:
+          type: string
+          const: assistant
+        content:
+          type: string
+        refusal:
+          type: 'null'
+    ChatCompletionChunk:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - object
+      - created
+      - model
+      - choices
+      properties:
+        id:
+          type: string
+          pattern: ^chatcmpl-
+        object:
+          type: string
+          const: chat.completion.chunk
+        created:
+          type: integer
+          format: int64
+        model:
+          type: string
+        choices:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            $ref: '#/components/schemas/ChatCompletionChunkChoice'
+    ChatCompletionChunkChoice:
+      type: object
+      additionalProperties: false
+      required:
+      - index
+      - delta
+      - logprobs
+      - finish_reason
+      properties:
+        index:
+          type: integer
+          const: 0
+        delta:
+          $ref: '#/components/schemas/ChatCompletionChunkDelta'
+        logprobs:
+          type: 'null'
+        finish_reason:
+          type:
+          - string
+          - 'null'
+    ChatCompletionChunkDelta:
+      type: object
+      additionalProperties: false
+      properties:
+        role:
+          type: string
+          const: assistant
+        content:
+          type: string
+        refusal:
+          type: 'null'
     CreateResponse:
       type: object
       additionalProperties: false

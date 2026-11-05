@@ -226,7 +226,7 @@ func TestGeneratedTransportKeepsStrictContract(t *testing.T) {
 	for _, route := range []struct {
 		method, path string
 		status       int
-	}{{"POST", "/v1/chat/completions", 404}, {"POST", "/v1/completions", 404}, {"GET", "/v1/responses", 405}, {"HEAD", "/v1/models", 404}, {"POST", "/v1/models", 404}} {
+	}{{"GET", "/v1/chat/completions", 405}, {"POST", "/v1/completions", 404}, {"GET", "/v1/responses", 405}, {"HEAD", "/v1/models", 404}, {"POST", "/v1/models", 404}} {
 		req, err := http.NewRequest(route.method, server.URL+route.path, nil)
 		if err != nil {
 			t.Fatal(err)
