@@ -1,0 +1,24 @@
+# Generated runtime/build data and dependency caches
+.git/
+.beads/
+.beads-credential-key
+*.gate.lock*
+.dolt/
+bin/
+dist/
+.cache/
+.gocache/
+.gomodcache/
+vendor/
+coverage.out
+*.coverprofile
+*.log
+__pycache__/
+
+# Local credentials and private runtime configuration
+.env
+.env.*
+.config/acpboss/
+/config.yaml
+.aws/
+.codex/

@@ -1,0 +1,617 @@
+openapi: 3.1.0
+info:
+  title: acpboss Responses subset
+  version: 0.2.0
+  description: Stateless ACP facade. Explicit store:false is required. Inline image
+    and file input maps to provider ACP capabilities. No remote media fetching, uploaded
+    file IDs, Chat Completions or stored continuation. Native ACP supports image,
+    audio and embedded resources; HTTP returns text and explicitly fails on non-text
+    assistant output.
+paths:
+  /v1/models:
+    get:
+      operationId: listModels
+      responses:
+        '200':
+          description: Sorted qualified models owned by available providers.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelList'
+  /v1/responses:
+    post:
+      operationId: createResponse
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateResponse'
+      responses:
+        '200':
+          description: 'Responses object; inspect status completed, incomplete or
+            failed.
+
+            Errors after generation acceptance use a failed Response.
+
+            '
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+            text/event-stream:
+              schema:
+                type: string
+                description: SSE frames containing StreamEvent JSON; monotonically
+                  increasing sequence_number and exactly one terminal event. No [DONE].
+                x-event-schema:
+                  $ref: '#/components/schemas/StreamEvent'
+        '405':
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Streaming unavailable on this transport.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Invalid or unsupported field/content/state/tool behavior.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Unknown model or unsupported route.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413':
+          description: Body exceeds the configured limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Proxy capacity exhausted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: Upstream setup/protocol error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Provider authentication required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '504':
+          description: Provider setup timeout.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  schemas:
+    CreateResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - model
+      - input
+      - store
+      properties:
+        model:
+          type: string
+          minLength: 1
+        store:
+          type: boolean
+          const: false
+        stream:
+          type: boolean
+          default: false
+        instructions:
+          type: string
+        previous_response_id:
+          type: 'null'
+        conversation:
+          type: 'null'
+        background:
+          type: boolean
+          const: false
+        text:
+          $ref: '#/components/schemas/TextOptions'
+        input:
+          oneOf:
+          - type: string
+            minLength: 1
+          - type: array
+            items:
+              $ref: '#/components/schemas/Message'
+            minItems: 1
+    Message:
+      type: object
+      additionalProperties: false
+      required:
+      - role
+      - content
+      properties:
+        type:
+          type: string
+          const: message
+        id:
+          type: string
+        status:
+          enum:
+          - in_progress
+          - completed
+          - incomplete
+          type: string
+        role:
+          enum:
+          - user
+          - assistant
+          - system
+          - developer
+          type: string
+        content:
+          oneOf:
+          - type: string
+          - type: array
+            items:
+              $ref: '#/components/schemas/InputPart'
+            minItems: 1
+    Response:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - object
+      - created_at
+      - completed_at
+      - status
+      - model
+      - output
+      - store
+      - usage
+      - previous_response_id
+      - instructions
+      - tools
+      - tool_choice
+      - parallel_tool_calls
+      - text
+      - error
+      - incomplete_details
+      properties:
+        id:
+          type: string
+          pattern: ^resp_
+        object:
+          type: string
+          const: response
+        created_at:
+          type: integer
+          format: int64
+        completed_at:
+          type:
+          - integer
+          - 'null'
+          format: int64
+        status:
+          type: string
+          enum:
+          - in_progress
+          - completed
+          - incomplete
+          - failed
+        model:
+          type: string
+        output:
+          type: array
+          items:
+            $ref: '#/components/schemas/OutputMessage'
+          maxItems: 1
+        store:
+          type: boolean
+          const: false
+        usage:
+          type: 'null'
+        previous_response_id:
+          type: 'null'
+        instructions:
+          type:
+          - string
+          - 'null'
+        tools:
+          type: array
+          items: {}
+          maxItems: 0
+        tool_choice:
+          type: string
+          const: none
+        parallel_tool_calls:
+          type: boolean
+          const: false
+        text:
+          $ref: '#/components/schemas/TextOptions'
+        error:
+          $ref: '#/components/schemas/ResponseError'
+        incomplete_details:
+          $ref: '#/components/schemas/IncompleteDetails'
+    InputText:
+      type: object
+      additionalProperties: false
+      required:
+      - type
+      - text
+      properties:
+        type:
+          type: string
+          const: input_text
+        text:
+          type: string
+        annotations:
+          type: array
+          items: {}
+          maxItems: 0
+        logprobs:
+          type: array
+          items: {}
+          maxItems: 0
+    OutputText:
+      type: object
+      additionalProperties: false
+      required:
+      - type
+      - text
+      properties:
+        type:
+          type: string
+          const: output_text
+        text:
+          type: string
+        annotations:
+          type: array
+          items: {}
+          maxItems: 0
+        logprobs:
+          type: array
+          items: {}
+          maxItems: 0
+    InputImage:
+      type: object
+      additionalProperties: false
+      required:
+      - type
+      - image_url
+      properties:
+        type:
+          type: string
+          const: input_image
+        image_url:
+          type: string
+          pattern: ^data:image/[^;,]+;base64,.+$
+        detail:
+          type: string
+          enum:
+          - auto
+      description: Inline base64 image data URL only. Absent/auto detail is supported;
+        ACP has no image quality selector. Provider must advertise image. Remote URLs
+        and file_id are rejected.
+    InputFile:
+      type: object
+      additionalProperties: false
+      required:
+      - type
+      - file_data
+      - filename
+      properties:
+        type:
+          type: string
+          const: input_file
+        file_data:
+          type: string
+          pattern: ^data:[^;,]+;base64,.+$
+        filename:
+          type: string
+          minLength: 1
+      description: Inline base64 data URL plus filename; mapped to opaque ACP embedded
+        blob resource. Provider must advertise embeddedContext. No file_id/file_url,
+        extraction or transcoding.
+    InputPart:
+      oneOf:
+      - $ref: '#/components/schemas/InputText'
+      - $ref: '#/components/schemas/OutputText'
+      - $ref: '#/components/schemas/InputImage'
+      - $ref: '#/components/schemas/InputFile'
+      discriminator:
+        propertyName: type
+        mapping:
+          input_text: '#/components/schemas/InputText'
+          output_text: '#/components/schemas/OutputText'
+          input_image: '#/components/schemas/InputImage'
+          input_file: '#/components/schemas/InputFile'
+    TextOptions:
+      type: object
+      additionalProperties: false
+      required:
+      - format
+      properties:
+        format:
+          type: object
+          additionalProperties: false
+          required:
+          - type
+          properties:
+            type:
+              type: string
+              const: text
+    Model:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - object
+      - owned_by
+      - created
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          const: model
+        owned_by:
+          type: string
+        created:
+          type: integer
+          const: 0
+    ModelList:
+      type: object
+      additionalProperties: false
+      required:
+      - object
+      - data
+      properties:
+        object:
+          type: string
+          const: list
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Model'
+    ResponseError:
+      type:
+      - object
+      - 'null'
+      additionalProperties: false
+      required:
+      - code
+      - message
+      properties:
+        code:
+          type: string
+          const: server_error
+        message:
+          type: string
+    IncompleteDetails:
+      type:
+      - object
+      - 'null'
+      additionalProperties: false
+      required:
+      - reason
+      properties:
+        reason:
+          type: string
+          const: max_output_tokens
+    ResponseText:
+      type: object
+      additionalProperties: false
+      required:
+      - type
+      - text
+      - annotations
+      - logprobs
+      properties:
+        type:
+          type: string
+          const: output_text
+        text:
+          type: string
+        annotations:
+          type: array
+          items: {}
+          maxItems: 0
+        logprobs:
+          type: array
+          items: {}
+          maxItems: 0
+    OutputMessage:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - type
+      - role
+      - status
+      - content
+      properties:
+        id:
+          type: string
+          pattern: ^msg_
+        type:
+          type: string
+          const: message
+        role:
+          type: string
+          const: assistant
+        status:
+          type: string
+          enum:
+          - in_progress
+          - completed
+          - incomplete
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResponseText'
+          maxItems: 1
+    Error:
+      type: object
+      additionalProperties: false
+      required:
+      - error
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required:
+          - code
+          - message
+          - param
+          - type
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            param:
+              type:
+              - string
+              - 'null'
+            type:
+              type: string
+              enum:
+              - invalid_request_error
+              - server_error
+    ResponseEvent:
+      type: object
+      additionalProperties: false
+      required:
+      - type
+      - sequence_number
+      - response
+      properties:
+        type:
+          type: string
+          enum:
+          - response.created
+          - response.in_progress
+          - response.completed
+          - response.incomplete
+          - response.failed
+        sequence_number: &id001
+          type: integer
+          format: int64
+        response:
+          $ref: '#/components/schemas/Response'
+    OutputItemEvent:
+      type: object
+      additionalProperties: false
+      required:
+      - type
+      - sequence_number
+      - output_index
+      - item
+      properties:
+        type:
+          type: string
+          enum:
+          - response.output_item.added
+          - response.output_item.done
+        sequence_number: *id001
+        output_index:
+          type: integer
+        item:
+          $ref: '#/components/schemas/OutputMessage'
+    ContentPartEvent:
+      type: object
+      additionalProperties: false
+      required:
+      - type
+      - sequence_number
+      - item_id
+      - output_index
+      - content_index
+      - part
+      properties:
+        type:
+          type: string
+          enum:
+          - response.content_part.added
+          - response.content_part.done
+        sequence_number: *id001
+        item_id: &id002
+          type: string
+        output_index: &id003
+          type: integer
+        content_index: &id004
+          type: integer
+        part:
+          $ref: '#/components/schemas/ResponseText'
+    TextDeltaEvent:
+      type: object
+      additionalProperties: false
+      required:
+      - type
+      - sequence_number
+      - item_id
+      - output_index
+      - content_index
+      - delta
+      - logprobs
+      properties:
+        type:
+          type: string
+          const: response.output_text.delta
+        sequence_number: *id001
+        item_id: *id002
+        output_index: *id003
+        content_index: *id004
+        delta:
+          type: string
+        logprobs:
+          type: array
+          items: {}
+          maxItems: 0
+    TextDoneEvent:
+      type: object
+      additionalProperties: false
+      required:
+      - type
+      - sequence_number
+      - item_id
+      - output_index
+      - content_index
+      - text
+      - logprobs
+      properties:
+        type:
+          type: string
+          const: response.output_text.done
+        sequence_number: *id001
+        item_id: *id002
+        output_index: *id003
+        content_index: *id004
+        text:
+          type: string
+        logprobs:
+          type: array
+          items: {}
+          maxItems: 0
+    StreamEvent:
+      oneOf:
+      - $ref: '#/components/schemas/ResponseEvent'
+      - $ref: '#/components/schemas/OutputItemEvent'
+      - $ref: '#/components/schemas/ContentPartEvent'
+      - $ref: '#/components/schemas/TextDeltaEvent'
+      - $ref: '#/components/schemas/TextDoneEvent'

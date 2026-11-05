@@ -5,3 +5,57 @@
 .beads-credential-key
 .beads/proxieddb/
 *.gate.lock*
+bin/
+coverage.out
+
+# Go build artifacts
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.a
+*.o
+
+# Go test and coverage outputs
+*.test
+cover.out
+*.coverprofile
+
+# Go/tool caches
+.cache/
+.gocache/
+.gomodcache/
+
+# IDE/editor files
+.idea/
+*.iml
+.vscode/
+.fleet/
+.zed/
+*.swp
+*.swo
+*~
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Logs and temp files
+*.log
+tmp/
+temp/
+
+# Local credentials and runtime configuration
+.aws/
+.env
+.env.*
+!.env.example
+.config/acpboss/
+/config.yaml
+.beads/embeddeddolt/
+
+# Python smoke-test artifacts
+__pycache__/
+*.py[cod]

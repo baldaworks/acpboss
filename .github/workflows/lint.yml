@@ -1,0 +1,21 @@
+name: Lint
+on: [push, pull_request]
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            tools/go.sum
+      # golangci-lint v2.15.0 is pinned in tools/go.mod (GitHub latest checked 2026-11-05).
+      - name: Lint with the pinned Go tool
+        run: make lint
